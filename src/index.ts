@@ -66,6 +66,11 @@ export const cloudinaryStorage: CloudinaryStoragePlugin =
 function cloudinaryStorageInternal({
   config,
   folder = 'payload-media',
+  versioning = {
+    enabled: false,
+    autoInvalidate: false,
+    storeHistory: false,
+  },
 }: CloudinaryStorageOptions): Adapter {
   return ({ collection, prefix }): GeneratedAdapter => {
     // Configure cloudinary
@@ -77,13 +82,14 @@ function cloudinaryStorageInternal({
 
     return {
       name: 'cloudinary',
-      generateURL: getGenerateURL({ config, folder }),
+      generateURL: getGenerateURL({ config, folder, versioning }),
       handleDelete: getHandleDelete({ cloudinary, folder }),
       handleUpload: getHandleUpload({
         cloudinary,
         collection,
         folder,
         prefix,
+        versioning,
       }),
       staticHandler: getHandler({ cloudinary, collection, folder }),   
     }

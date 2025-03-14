@@ -1,5 +1,6 @@
 import type { GenerateURL } from "@payloadcms/plugin-cloud-storage/types";
 import type { CloudinaryStorageOptions } from "./index";
+import type { GenerateURLParams, CloudinaryGenerateURL } from "./types";
 
 import path from "path";
 import { IMAGE_EXTENSIONS, RAW_EXTENSIONS, VIDEO_EXTENSIONS } from "./constants";
@@ -7,6 +8,7 @@ import { IMAGE_EXTENSIONS, RAW_EXTENSIONS, VIDEO_EXTENSIONS } from "./constants"
 interface Args {
   config: CloudinaryStorageOptions["config"];
   folder: string;
+  versioning?: CloudinaryStorageOptions["versioning"];
 }
 
 const getResourceType = (ext: string): string => {
@@ -17,25 +19,43 @@ const getResourceType = (ext: string): string => {
 };
 
 export const getGenerateURL =
-  ({ config, folder }: Args): GenerateURL =>
-  ({ filename, prefix = "" }) => {
-    // Construct the folder path with proper handling of prefix
-    const folderPath = prefix ? path.posix.join(folder, prefix) : folder;
-    const filePath = path.posix.join(folderPath, filename);
-    const ext = path.extname(filename).toLowerCase();
-    const resourceType = getResourceType(ext);
-    const baseUrl = `https://res.cloudinary.com/${config.cloud_name}`;
+  ({ config, folder, versioning }: Args): GenerateURL => {
+    const generateURL: CloudinaryGenerateURL = (params: GenerateURLParams) => {
+      const { filename, prefix = "", version } = params;
+      // Construct the folder path with proper handling of prefix
+      const folderPath = prefix ? path.posix.join(folder, prefix) : folder;
+      const filePath = path.posix.join(folderPath, filename);
+      const public_id = filePath.replace(/\.[^/.]+$/, ""); // Remove file extension
+      const ext = path.extname(filename).toLowerCase();
+      const resourceType = getResourceType(ext);
+      const baseUrl = `https://res.cloudinary.com/${config.cloud_name}`;
 
-    switch (resourceType) {
-      case "video":
-        return `${baseUrl}/video/upload/f_auto,q_auto/${filePath}`;
-      case "image":
-        return `${baseUrl}/image/upload/f_auto,q_auto/${filePath}`;
-      case "raw":
-        return `${baseUrl}/raw/upload/${filePath}`;
-      default:
-        return `${baseUrl}/auto/upload/${filePath}`;
-    }
+      // Add version to URL if versioning is enabled and version is provided
+      const versionSegment = (versioning?.enabled && version) ? `/v${version}` : '';
+
+      let url: string;
+      switch (resourceType) {
+        case "video":
+          url = `${baseUrl}/video/upload${versionSegment}/f_auto,q_auto/${filePath}`;
+          break;
+        case "image":
+          url = `${baseUrl}/image/upload${versionSegment}/f_auto,q_auto/${filePath}`;
+          break;
+        case "raw":
+          url = `${baseUrl}/raw/upload${versionSegment}/${filePath}`;
+          break;
+        default:
+          url = `${baseUrl}/auto/upload${versionSegment}/${filePath}`;
+      }
+
+      return {
+        url,
+        public_id
+      };
+    };
+
+    // Return a function that extracts just the URL to maintain compatibility
+    return (params) => generateURL(params).url;
   };
 
 
