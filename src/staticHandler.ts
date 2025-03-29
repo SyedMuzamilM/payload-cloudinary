@@ -22,53 +22,114 @@ export const getHandler =
       // Determine resource type based on file extension
       const fileExt = path.extname(filename).toLowerCase();
       const resourceType = getResourceType(fileExt);
+      
+      // Generate the public_id - keep the extension for better identification
+      // This is different from the upload behavior which removes extensions
+      const publicId = filePath;
 
-      const result = await cloudinary.api.resource(
-        filePath.replace(/\.[^/.]+$/, ""),
-        {
+      try {
+        // First, try to get the resource with the extension included
+        const result = await cloudinary.api.resource(publicId, {
           resource_type: resourceType,
-        }
-      );
-
-      if (!result || !result.secure_url) {
-        return new Response(null, { status: 404, statusText: "Not Found" });
-      }
-
-      const response = await fetch(result.secure_url);
-
-      if (!response.ok) {
-        return new Response(null, { status: 404, statusText: "Not Found" });
-      }
-
-      const blob = await response.blob();
-
-      const etagFromHeaders =
-        req.headers.get("etag") || req.headers.get("if-none-match");
-      const objectEtag = req.headers.get("etag") as string;
-
-      if (etagFromHeaders && etagFromHeaders === objectEtag) {
-        return new Response(null, {
-          headers: new Headers({
-            "Content-Type": blob.type,
-            "Content-Length": String(blob.size),
-            ETag: objectEtag,
-          }),
-          status: 304,
         });
+        
+        if (result && result.secure_url) {
+          const response = await fetch(result.secure_url);
+          
+          if (!response.ok) {
+            return new Response(null, { status: 404, statusText: "Not Found" });
+          }
+          
+          const blob = await response.blob();
+          
+          const etagFromHeaders =
+            req.headers.get("etag") || req.headers.get("if-none-match");
+          const objectEtag = req.headers.get("etag") as string;
+          
+          if (etagFromHeaders && etagFromHeaders === objectEtag) {
+            return new Response(null, {
+              headers: new Headers({
+                "Content-Type": blob.type,
+                "Content-Length": String(blob.size),
+                ETag: objectEtag,
+              }),
+              status: 304,
+            });
+          }
+          
+          // Return the blob with appropriate headers
+          return new Response(blob, {
+            headers: new Headers({
+              "Content-Type": blob.type,
+              "Content-Length": String(blob.size),
+              ETag: objectEtag,
+            }),
+            status: 200,
+          });
+        }
+      } catch (resourceError) {
+        // If the first attempt fails, try without the extension
+        try {
+          const publicIdWithoutExt = filePath.replace(/\.[^/.]+$/, "");
+          
+          const fallbackResult = await cloudinary.api.resource(publicIdWithoutExt, {
+            resource_type: resourceType,
+          });
+          
+          if (fallbackResult && fallbackResult.secure_url) {
+            const response = await fetch(fallbackResult.secure_url);
+            
+            if (!response.ok) {
+              return new Response(null, { status: 404, statusText: "Not Found" });
+            }
+            
+            const blob = await response.blob();
+            
+            const etagFromHeaders =
+              req.headers.get("etag") || req.headers.get("if-none-match");
+            const objectEtag = req.headers.get("etag") as string;
+            
+            if (etagFromHeaders && etagFromHeaders === objectEtag) {
+              return new Response(null, {
+                headers: new Headers({
+                  "Content-Type": blob.type,
+                  "Content-Length": String(blob.size),
+                  ETag: objectEtag,
+                }),
+                status: 304,
+              });
+            }
+            
+            // Return the blob with appropriate headers
+            return new Response(blob, {
+              headers: new Headers({
+                "Content-Type": blob.type,
+                "Content-Length": String(blob.size),
+                ETag: objectEtag,
+              }),
+              status: 200,
+            });
+          }
+        } catch (fallbackError) {
+          // If both attempts fail, return 404
+          req.payload.logger.error({ 
+            error: fallbackError, 
+            message: "Resource not found in Cloudinary",
+            path: filePath
+          });
+          return new Response(null, { status: 404, statusText: "Not Found" });
+        }
       }
-
-      // Redirect to Cloudinary URL
-      return new Response(blob, {
-        headers: new Headers({
-          "Content-Type": blob.type,
-          "Content-Length": String(blob.size),
-          ETag: objectEtag,
-        }),
-        status: 200,
-      });
+      
+      // If we get here, the resource wasn't found
+      return new Response(null, { status: 404, statusText: "Not Found" });
       
     } catch (error) {
-      req.payload.logger.error({ error, message: "Error in statichandler" });
+      req.payload.logger.error({ 
+        error, 
+        message: "Error in statichandler", 
+        filename 
+      });
       return new Response("Internal Server Error", { status: 500 });
     }
   };

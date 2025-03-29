@@ -11,6 +11,33 @@ print_message() {
     echo -e "${2}${1}${NC}"
 }
 
+# Function to publish test version
+publish_test_version() {
+    local version=$1
+    local tag=$2
+    
+    print_message "📦 Publishing test version ${version} with tag: ${tag}..." "$YELLOW"
+    
+    # Update version in package.json
+    npm version $version --no-git-tag-version
+    
+    # Run tests
+    print_message "🧪 Running tests..." "$YELLOW"
+    bun test || exit 1
+    
+    # Build the project
+    print_message "🏗️ Building project..." "$YELLOW"
+    bun run build || exit 1
+    
+    # Publish with tag
+    if npm publish --tag $tag; then
+        print_message "✅ Successfully published test version ${version}" "$GREEN"
+    else
+        print_message "❌ Failed to publish test version" "$RED"
+        exit 1
+    fi
+}
+
 # Check if the working directory is clean
 if [ -n "$(git status --porcelain)" ]; then
     print_message "❌ Working directory is not clean. Please commit or stash your changes first." "$RED"
@@ -21,71 +48,52 @@ fi
 current_version=$(node -p "require('./package.json').version")
 print_message "Current version: $current_version" "$YELLOW"
 
-# Ask for the release type
-echo "Select release type:"
-echo "1) Stable"
-echo "2) Beta"
-echo "3) Canary"
-read -p "Enter choice (1-3): " release_type
+# Select test version type
+echo "Select test version type:"
+echo "1) Development (dev)"
+echo "2) Alpha"
+echo "3) Beta"
+echo "4) Release Candidate (rc)"
+read -p "Enter choice (1-4): " version_type
 
-# Ask for the new version
-read -p "Enter new version (current is $current_version): " new_version
+# Get base version
+read -p "Enter base version (current is $current_version): " base_version
 
-if [ -z "$new_version" ]; then
-    print_message "❌ Version cannot be empty" "$RED"
-    exit 1
-fi
-
-# Modify version based on release type
-case $release_type in
+# Generate version based on type
+case $version_type in
+    1)
+        version="${base_version}-dev.$(date +%Y%m%d%H%M)"
+        tag="dev"
+        ;;
     2)
-        new_version="${new_version}-beta.0"
-        npm_tag="beta"
+        read -p "Enter alpha number (e.g., 1): " alpha_num
+        version="${base_version}-alpha.${alpha_num}"
+        tag="alpha"
         ;;
     3)
-        new_version="${new_version}-canary.$(date +%Y%m%d%H%M)"
-        npm_tag="canary"
+        read -p "Enter beta number (e.g., 1): " beta_num
+        version="${base_version}-beta.${beta_num}"
+        tag="beta"
+        ;;
+    4)
+        read -p "Enter RC number (e.g., 1): " rc_num
+        version="${base_version}-rc.${rc_num}"
+        tag="rc"
         ;;
     *)
-        npm_tag="latest"
+        print_message "❌ Invalid choice" "$RED"
+        exit 1
         ;;
 esac
 
-# Update version in package.json
-npm version $new_version --no-git-tag-version
-
-# Run tests
-print_message "🧪 Running tests..." "$YELLOW"
-bun test
-if [ $? -ne 0 ]; then
-    print_message "❌ Tests failed" "$RED"
-    exit 1
-fi
-
-# Build the project
-print_message "🏗️ Building project..." "$YELLOW"
-bun run build
-if [ $? -ne 0 ]; then
-    print_message "❌ Build failed" "$RED"
-    exit 1
-fi
+# Publish test version
+publish_test_version $version $tag
 
 # Create git tag
 git add package.json
-git commit -m "chore: release v$new_version"
-git tag -a "v$new_version" -m "Release v$new_version"
+git commit -m "chore: release v$version"
+git tag -a "v$version" -m "Release v$version"
 
 # Push to repository
 print_message "🚀 Pushing to repository..." "$YELLOW"
 git push && git push --tags
-
-# Publish to npm with appropriate tag
-print_message "📦 Publishing to npm with tag: $npm_tag..." "$YELLOW"
-npm publish --tag $npm_tag
-
-if [ $? -eq 0 ]; then
-    print_message "✅ Successfully published version $new_version with tag: $npm_tag" "$GREEN"
-else
-    print_message "❌ Failed to publish to npm" "$RED"
-    exit 1
-fi
