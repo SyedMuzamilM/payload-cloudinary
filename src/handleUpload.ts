@@ -2,7 +2,7 @@ import type { HandleUpload } from "@payloadcms/plugin-cloud-storage/types";
 import type { CollectionConfig } from "payload";
 import type { v2 as cloudinaryType } from "cloudinary";
 import type { UploadApiOptions } from "cloudinary";
-import type { CloudinaryVersioningOptions } from "./types";
+import type { CloudinaryVersioningOptions, PublicIDOptions } from "./types";
 
 import path from "path";
 import stream from "stream";
@@ -14,6 +14,7 @@ interface Args {
   folder: string;
   prefix?: string;
   versioning?: CloudinaryVersioningOptions;
+  publicID?: PublicIDOptions;
 }
 
 const getUploadOptions = (filename: string, versioning?: CloudinaryVersioningOptions): UploadApiOptions => {
@@ -52,21 +53,77 @@ const getUploadOptions = (filename: string, versioning?: CloudinaryVersioningOpt
   }
 };
 
+/**
+ * Sanitize a string to be used as part of a public ID
+ * @param str String to sanitize
+ * @returns Sanitized string
+ */
+const sanitizeForPublicID = (str: string): string => {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '-') // Replace any character that's not a letter or number with a hyphen
+    .replace(/-+/g, '-') // Replace consecutive hyphens with a single hyphen
+    .replace(/^-|-$/g, ''); // Remove leading or trailing hyphens
+};
+
+/**
+ * Generate a public ID based on the publicID options
+ * @param filename Original filename
+ * @param folderPath Folder path
+ * @param publicIDOptions Public ID options
+ * @returns Generated public ID
+ */
+const generatePublicID = (
+  filename: string, 
+  folderPath: string, 
+  publicIDOptions?: PublicIDOptions
+): string => {
+  // If a custom generator function is provided, use it
+  if (publicIDOptions?.generatePublicID) {
+    return publicIDOptions.generatePublicID(filename, path.dirname(folderPath), path.basename(folderPath));
+  }
+
+  // If publicID is disabled, just return the path without extension but with sanitization
+  if (publicIDOptions?.enabled === false) {
+    const filenameWithoutExt = path.basename(filename, path.extname(filename));
+    const sanitizedFilename = sanitizeForPublicID(filenameWithoutExt);
+    return path.posix.join(folderPath, sanitizedFilename);
+  }
+
+  // Default behavior - use filename (if enabled) and make it unique (if enabled)
+  const useFilename = publicIDOptions?.useFilename !== false;
+  const uniqueFilename = publicIDOptions?.uniqueFilename !== false;
+  
+  const timestamp = uniqueFilename ? `_${Date.now()}` : '';
+  
+  if (useFilename) {
+    // Use the filename as part of the public ID (sanitized)
+    const filenameWithoutExt = path.basename(filename, path.extname(filename));
+    const sanitizedFilename = sanitizeForPublicID(filenameWithoutExt);
+    return path.posix.join(folderPath, `${sanitizedFilename}${timestamp}`);
+  }
+  
+  // Generate a timestamp-based ID if not using filename
+  return path.posix.join(folderPath, `media${timestamp}`);
+};
+
 export const getHandleUpload =
-  ({ cloudinary, folder, prefix = "", versioning }: Args): HandleUpload =>
+  ({ cloudinary, folder, prefix = "", versioning, publicID }: Args): HandleUpload =>
   async ({ data, file }) => {
     // Construct the folder path with proper handling of prefix
     const folderPath = data.prefix 
       ? path.posix.join(folder, data.prefix) 
       : path.posix.join(folder, prefix);
     
-    const filePath = path.posix.join(folderPath, file.filename);
+    // Generate the public ID based on options
+    const publicIdValue = generatePublicID(file.filename, folderPath, publicID);
+    
     const uploadOptions: UploadApiOptions = {
       ...getUploadOptions(file.filename, versioning),
-      public_id: filePath.replace(/\.[^/.]+$/, ""), // Remove file extension
-      folder: folderPath, // Explicitly set the folder
-      use_filename: true,
-      unique_filename: true,
+      public_id: publicIdValue,
+      folder: path.dirname(publicIdValue), // Extract folder from public_id
+      use_filename: publicID?.useFilename !== false,
+      unique_filename: publicID?.uniqueFilename !== false,
     };
 
     return new Promise((resolve, reject) => {

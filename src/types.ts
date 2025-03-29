@@ -1,5 +1,5 @@
 import type { Adapter, CollectionOptions, GenerateURL } from '@payloadcms/plugin-cloud-storage/types'
-import type { Plugin, UploadCollectionSlug } from 'payload'
+import type { Plugin, UploadCollectionSlug, Field } from 'payload'
 
 // Extend the GenerateURL parameter type
 export type GenerateURLParams = Parameters<GenerateURL>[0] & {
@@ -48,6 +48,39 @@ export type CloudinaryVersioningOptions = {
   storeHistory?: boolean
 }
 
+/**
+ * Options for customizing Cloudinary public ID generation
+ */
+export type PublicIDOptions = {
+  /**
+   * Whether to enable custom public ID generation
+   * @default true
+   */
+  enabled?: boolean
+
+  /**
+   * Whether to use the original filename as part of the public ID
+   * @default true
+   */
+  useFilename?: boolean
+
+  /**
+   * Whether to ensure unique filenames by adding a random suffix
+   * @default true
+   */
+  uniqueFilename?: boolean
+
+  /**
+   * Custom function to generate a public ID
+   * If provided, this will override useFilename and uniqueFilename
+   * @param filename The original filename
+   * @param prefix The file prefix (if any)
+   * @param folder The base folder
+   * @returns A string to use as the public ID
+   */
+  generatePublicID?: (filename: string, prefix?: string, folder?: string) => string
+}
+
 export type CloudinaryStorageOptions = {
   /**
    * Collection options to apply the Cloudinary adapter to.
@@ -81,6 +114,17 @@ export type CloudinaryStorageOptions = {
    * Versioning configuration options
    */
   versioning?: CloudinaryVersioningOptions
+
+  /**
+   * Public ID configuration options
+   */
+  publicID?: PublicIDOptions
+
+  /**
+   * Additional custom fields to add to media collection
+   * These will be merged with the default fields (cloudinary, versions, etc.)
+   */
+  customFields?: Field[]
 }
 
 export type CloudinaryStoragePlugin = (cloudinaryArgs: CloudinaryStorageOptions) => Plugin
@@ -96,6 +140,8 @@ export type CloudinaryMetadata = {
   width?: number
   height?: number
   eager?: any[]
+  version?: string
+  version_id?: string
 }
 
 export type CloudinaryAdapter = Adapter
