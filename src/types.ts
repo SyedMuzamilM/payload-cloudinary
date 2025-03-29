@@ -1,9 +1,20 @@
 import type { Adapter, CollectionOptions, GenerateURL } from '@payloadcms/plugin-cloud-storage/types'
 import type { Plugin, UploadCollectionSlug, Field } from 'payload'
 
+// Define a simplified PayloadDocument type for use with thumbnails
+export interface PayloadDocument {
+  id?: string;
+  filename?: string;
+  cloudinary?: CloudinaryMetadata;
+  sizes?: Record<string, { url: string; width: number; height: number; }>;
+  [key: string]: any;
+}
+
 // Extend the GenerateURL parameter type
 export type GenerateURLParams = Parameters<GenerateURL>[0] & {
   version?: string | number;
+  pdf_page?: number; // Page number for PDF thumbnails
+  format?: string; // Target format for conversion
 }
 
 export type CloudinaryURLResponse = {
@@ -18,6 +29,8 @@ export type CloudinaryGenerateURL = (args: GenerateURLParams) => CloudinaryURLRe
 declare module '@payloadcms/plugin-cloud-storage/types' {
   interface GenerateURLArgs {
     version?: string | number;
+    pdf_page?: number; // Page number for PDF thumbnails
+    format?: string; // Target format for conversion
   }
 }
 
@@ -125,6 +138,12 @@ export type CloudinaryStorageOptions = {
    * These will be merged with the default fields (cloudinary, versions, etc.)
    */
   customFields?: Field[]
+
+  /**
+   * Enable PDF thumbnails in the admin UI
+   * @default true
+   */
+  enablePDFThumbnails?: boolean
 }
 
 export type CloudinaryStoragePlugin = (cloudinaryArgs: CloudinaryStorageOptions) => Plugin
@@ -142,6 +161,9 @@ export type CloudinaryMetadata = {
   eager?: any[]
   version?: string
   version_id?: string
+  pages?: number
+  selected_page?: number
+  thumbnail_url?: string
 }
 
 export type CloudinaryAdapter = Adapter

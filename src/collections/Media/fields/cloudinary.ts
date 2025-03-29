@@ -111,6 +111,37 @@ export const cloudinaryFields: Field[] = [
           condition: (data) => data?.resource_type === 'video',
         },
       },
+      {
+        name: 'pages',
+        type: 'number',
+        label: 'Pages',
+        admin: {
+          description: 'Number of pages (for PDFs)',
+          readOnly: true,
+          condition: (data) => data?.format === 'pdf',
+        },
+      },
+      {
+        name: 'selected_page',
+        type: 'number',
+        label: 'Page to Display',
+        admin: {
+          description: 'Which page of the PDF to use for thumbnails (changes will apply after saving)',
+          condition: (data) => data?.format === 'pdf',
+        },
+        defaultValue: 1,
+        min: 1,
+      },
+      {
+        name: 'thumbnail_url',
+        type: 'text',
+        label: 'Thumbnail URL',
+        admin: {
+          description: 'URL for the thumbnail image (automatically generated for PDFs)',
+          readOnly: true,
+          condition: (data) => data?.format === 'pdf',
+        },
+      },
     ],
   },
 ] 

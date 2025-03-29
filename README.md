@@ -14,6 +14,7 @@ A powerful plugin for [Payload CMS](https://payloadcms.com/) that integrates Clo
 - 📁 Customizable folder structure
 - 🎛️ Static file handling
 - 💾 Optional local storage disable
+- 📄 PDF support with thumbnail generation
 
 ## Installation
 
@@ -176,6 +177,70 @@ cloudinaryStorage({
 })
 ```
 
+### PDF Support
+
+The plugin provides special handling for PDF files, including:
+
+- Automatic page count detection
+- Page selection for thumbnails
+- Thumbnail URL generation for use in your frontend
+- Support for viewing different pages of the PDF
+
+When a PDF is uploaded, the plugin will:
+
+1. Count the number of pages in the PDF
+2. Store the page count in the `cloudinary.pages` field
+3. Generate a default thumbnail of the first page
+4. Allow you to select a different page to use as the thumbnail
+5. Provide a `thumbnail_url` for easy use in your frontend
+
+Example usage in a frontend component:
+
+```jsx
+const PDFViewer = ({ media }) => {
+  if (!media?.cloudinary || media.cloudinary.format !== 'pdf') {
+    return null;
+  }
+  
+  const { public_id, pages, selected_page } = media.cloudinary;
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const page = selected_page || 1;
+  
+  return (
+    <div className="pdf-viewer">
+      <h2>{media.filename}</h2>
+      
+      {/* Display the selected page as a thumbnail */}
+      <a href={`https://res.cloudinary.com/${cloudName}/image/upload/${public_id}.pdf`} target="_blank">
+        <img 
+          src={`https://res.cloudinary.com/${cloudName}/image/upload/pg_${page},w_300,h_400,c_fill,q_auto,f_jpg/${public_id}.pdf`} 
+          alt={`PDF Page ${page}`} 
+        />
+      </a>
+      
+      {/* Page navigation if there are multiple pages */}
+      {pages > 1 && (
+        <div className="pdf-pages">
+          <p>Page {page} of {pages}</p>
+          
+          {/* Thumbnail grid of all pages */}
+          <div className="page-thumbnails">
+            {Array.from({ length: pages }).map((_, i) => (
+              <img 
+                key={i}
+                src={`https://res.cloudinary.com/${cloudName}/image/upload/pg_${i + 1},w_100,h_130,c_fill,q_auto,f_jpg/${public_id}.pdf`} 
+                alt={`Page ${i + 1}`} 
+                className={i + 1 === page ? 'active' : ''}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+```
+
 ## Media Collection Structure
 
 When using this plugin, your media documents will include the following metadata:
@@ -203,7 +268,12 @@ When using this plugin, your media documents will include the following metadata
     width: 800,
     height: 600,
     version: '1234567890',
-    version_id: 'a1b2c3d4'
+    version_id: 'a1b2c3d4',
+    
+    // PDF-specific fields (for PDFs only)
+    pages: 5,                // Number of pages in the PDF
+    selected_page: 1,        // Which page to use for thumbnails
+    thumbnail_url: 'https://res.cloudinary.com/your-cloud/image/upload/pg_1,f_jpg/your-folder/example_20230101120000.pdf'
   },
   
   // Version history (if versioning.storeHistory is true)

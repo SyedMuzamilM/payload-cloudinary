@@ -8,6 +8,7 @@ import type { Config } from 'payload'
 
 import { v2 as cloudinary } from 'cloudinary'
 import { cloudStoragePlugin } from '@payloadcms/plugin-cloud-storage'
+import path from 'path'
 
 import { getGenerateURL } from './generateURL'
 import { getHandleDelete } from './handleDelete'
@@ -17,10 +18,29 @@ import { generateMediaCollection } from './collections/Media'
 import { generateCustomFields } from './collections/Media/fields/customFields'
 import { cloudinaryFields } from './collections/Media/fields/cloudinary'
 import { versionFields } from './collections/Media/fields/versions'
-import type { CloudinaryStorageOptions, CloudinaryStoragePlugin, CloudinaryMetadata, CloudinaryAdapter } from './types'
+import type { 
+  CloudinaryStorageOptions, 
+  CloudinaryStoragePlugin, 
+  CloudinaryMetadata, 
+  CloudinaryAdapter,
+  PayloadDocument
+} from './types'
 
 export type { CloudinaryStorageOptions, CloudinaryStoragePlugin, CloudinaryMetadata, CloudinaryAdapter }
 export { generateMediaCollection }
+
+// Function to check if a filename is a PDF by extension
+const isPDF = (filename?: string): boolean => {
+  if (!filename) return false;
+  return path.extname(filename).toLowerCase() === '.pdf';
+};
+
+// Default adminThumbnail generator for PDFs
+const defaultPDFThumbnailGenerator = (doc: PayloadDocument, cloudName: string): string => {
+  if (!doc.cloudinary?.public_id) return '';
+  const page = doc.cloudinary?.selected_page || 1;
+  return `https://res.cloudinary.com/${cloudName}/image/upload/pg_${page},w_300,h_400,c_fill,q_auto,f_jpg/${doc.cloudinary.public_id}.pdf`;
+};
 
 export const cloudinaryStorage: CloudinaryStoragePlugin =
   (cloudinaryOptions: CloudinaryStorageOptions) =>
@@ -64,6 +84,39 @@ export const cloudinaryStorage: CloudinaryStoragePlugin =
             disableLocalStorage: true,
           },
         };
+
+        // Add PDF thumbnail support if this is an upload collection
+        if (modifiedCollection.upload) {
+          const uploadConfig = modifiedCollection.upload;
+          
+          // If no adminThumbnail specified, or we specifically enable PDF thumbnails
+          if (!uploadConfig.adminThumbnail || cloudinaryOptions.enablePDFThumbnails !== false) {
+            modifiedCollection.upload = {
+              ...uploadConfig,
+              // Set custom adminThumbnail function that handles PDFs
+              adminThumbnail: ({ doc }) => {
+                const document = doc as PayloadDocument;
+                
+                // For PDFs, return a Cloudinary-generated thumbnail
+                if (isPDF(document.filename) && document.cloudinary?.public_id) {
+                  return defaultPDFThumbnailGenerator(document, cloudinaryOptions.config.cloud_name);
+                }
+                
+                // For other types, use existing adminThumbnail if defined
+                if (typeof uploadConfig.adminThumbnail === 'function') {
+                  return uploadConfig.adminThumbnail({ doc });
+                }
+                
+                if (typeof uploadConfig.adminThumbnail === 'string' && document.sizes?.[uploadConfig.adminThumbnail]) {
+                  return document.sizes[uploadConfig.adminThumbnail].url;
+                }
+                
+                // Default to secure_url from Cloudinary
+                return document.cloudinary?.secure_url || '';
+              }
+            };
+          }
+        }
 
         // Then, inject our custom fields if they're provided
         if (cloudinaryOptions.customFields && cloudinaryOptions.customFields.length > 0) {

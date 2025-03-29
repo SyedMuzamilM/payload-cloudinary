@@ -43,6 +43,19 @@ const getUploadOptions = (filename: string, versioning?: CloudinaryVersioningOpt
         eager_async: true,
       };
     case "raw":
+      // For PDFs, add a pages parameter to count the pages and create a thumbnail
+      if (ext === '.pdf') {
+        return {
+          ...baseOptions,
+          resource_type: "raw",
+          use_filename: true,
+          // When uploading PDFs, add a parameter to extract page count
+          pages: true,
+          // Set an eager transformation to create a thumbnail of first page
+          eager: [{ format: 'jpg', page: 1, quality: "auto" }],
+          eager_async: true,
+        };
+      }
       return {
         ...baseOptions,
         resource_type: "raw",
@@ -107,6 +120,39 @@ const generatePublicID = (
   return path.posix.join(folderPath, `media${timestamp}`);
 };
 
+/**
+ * Check if a file is a PDF based on its file extension
+ */
+const isPDF = (filename: string): boolean => {
+  const ext = path.extname(filename).toLowerCase();
+  return ext === '.pdf';
+};
+
+/**
+ * Get PDF page count from Cloudinary
+ * This is a separate function to avoid async/await linter issues
+ */
+const getPDFPageCount = async (
+  cloudinary: typeof cloudinaryType,
+  publicId: string, 
+  defaultCount = 1
+): Promise<number> => {
+  try {
+    const pdfInfo = await cloudinary.api.resource(publicId, { 
+      resource_type: 'raw',
+      pages: true 
+    });
+    
+    if (pdfInfo && pdfInfo.pages) {
+      return pdfInfo.pages;
+    }
+  } catch (error) {
+    console.error("Error getting PDF page count:", error);
+  }
+  
+  return defaultCount;
+};
+
 export const getHandleUpload =
   ({ cloudinary, folder, prefix = "", versioning, publicID }: Args): HandleUpload =>
   async ({ data, file }) => {
@@ -130,7 +176,7 @@ export const getHandleUpload =
       try {
         const uploadStream = cloudinary.uploader.upload_stream(
           uploadOptions,
-          (error, result) => {
+          async (error, result) => {
             if (error) {
               console.error("Error uploading to Cloudinary:", error);
               reject(error);
@@ -138,27 +184,57 @@ export const getHandleUpload =
             }
 
             if (result) {
-              // Add metadata to the response including version information
-              data.cloudinary = {
+              const isPDFFile = isPDF(file.filename);
+              const baseMetadata = {
                 public_id: result.public_id,
                 resource_type: result.resource_type,
                 format: result.format,
                 secure_url: result.secure_url,
                 bytes: result.bytes,
                 created_at: result.created_at,
-                version: result.version, // Add version information
-                version_id: result.version_id, // Add version ID if available
-                ...(result.resource_type === "video" && {
+                version: result.version,
+                version_id: result.version_id,
+              };
+
+              // Add metadata based on resource type
+              let typeSpecificMetadata = {};
+              
+              if (result.resource_type === "video") {
+                typeSpecificMetadata = {
                   duration: result.duration,
                   width: result.width,
                   height: result.height,
                   eager: result.eager,
-                }),
-                ...(result.resource_type === "image" && {
+                };
+              } else if (result.resource_type === "image") {
+                typeSpecificMetadata = {
                   width: result.width,
                   height: result.height,
-                  format: result.format,
-                }),
+                };
+              } else if (isPDFFile) {
+                // Handle PDF specific metadata
+                let pageCount = 1;
+                
+                // Try to get page count from result, otherwise call the API
+                if (result.pages) {
+                  pageCount = result.pages;
+                } else {
+                  // Use the separate async function to get page count
+                  pageCount = await getPDFPageCount(cloudinary, result.public_id);
+                }
+                
+                typeSpecificMetadata = {
+                  pages: pageCount,
+                  selected_page: 1, // Default to first page for thumbnails
+                  // Generate a thumbnail URL for the PDF
+                  thumbnail_url: `https://res.cloudinary.com/${cloudinary.config().cloud_name}/image/upload/pg_1/q_auto,f_jpg/${result.public_id}.jpg`
+                };
+              }
+
+              // Combine base and type-specific metadata
+              data.cloudinary = {
+                ...baseMetadata,
+                ...typeSpecificMetadata,
               };
 
               // If versioning and history storage is enabled, store version info
