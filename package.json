@@ -1,6 +1,6 @@
 {
   "name": "payload-cloudinary",
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0-alpha.2",
   "description": "A Cloudinary storage plugin for Payload CMS",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
