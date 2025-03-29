@@ -156,6 +156,7 @@ function cloudinaryStorageInternal({
     storeHistory: false,
   },
   publicID,
+  supportDynamicFolderMode = true,
 }: CloudinaryStorageOptions): Adapter {
   return ({ collection, prefix }): GeneratedAdapter => {
     // Configure cloudinary
@@ -176,6 +177,7 @@ function cloudinaryStorageInternal({
         prefix,
         versioning,
         publicID,
+        supportDynamicFolderMode,
       }),
       staticHandler: getHandler({ cloudinary, collection, folder }),   
     }

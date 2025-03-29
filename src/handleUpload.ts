@@ -15,6 +15,7 @@ interface Args {
   prefix?: string;
   versioning?: CloudinaryVersioningOptions;
   publicID?: PublicIDOptions;
+  supportDynamicFolderMode?: boolean;
 }
 
 const getUploadOptions = (filename: string, versioning?: CloudinaryVersioningOptions): UploadApiOptions => {
@@ -154,7 +155,7 @@ const getPDFPageCount = async (
 };
 
 export const getHandleUpload =
-  ({ cloudinary, folder, prefix = "", versioning, publicID }: Args): HandleUpload =>
+  ({ cloudinary, folder, prefix = "", versioning, publicID, supportDynamicFolderMode = true }: Args): HandleUpload =>
   async ({ data, file }) => {
     // Construct the folder path with proper handling of prefix
     const folderPath = data.prefix 
@@ -164,6 +165,7 @@ export const getHandleUpload =
     // Generate the public ID based on options
     const publicIdValue = generatePublicID(file.filename, folderPath, publicID);
     
+    // Basic upload options
     const uploadOptions: UploadApiOptions = {
       ...getUploadOptions(file.filename, versioning),
       public_id: publicIdValue,
@@ -171,6 +173,11 @@ export const getHandleUpload =
       use_filename: publicID?.useFilename !== false,
       unique_filename: publicID?.uniqueFilename !== false,
     };
+
+    // Add asset_folder parameter for Dynamic Folder Mode
+    if (supportDynamicFolderMode) {
+      uploadOptions.asset_folder = folderPath;
+    }
 
     return new Promise((resolve, reject) => {
       try {

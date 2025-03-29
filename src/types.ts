@@ -134,6 +134,13 @@ export type CloudinaryStorageOptions = {
   publicID?: PublicIDOptions
 
   /**
+   * Support for Dynamic Folder Mode
+   * When true, uses asset_folder parameter in upload to ensure correct folder display in Media Library
+   * @default true
+   */
+  supportDynamicFolderMode?: boolean
+
+  /**
    * Additional custom fields to add to media collection
    * These will be merged with the default fields (cloudinary, versions, etc.)
    */

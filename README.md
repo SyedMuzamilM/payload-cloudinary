@@ -404,6 +404,48 @@ export default buildConfig({
 })
 ```
 
+## Dynamic Folder Mode Support
+
+Cloudinary has two folder modes: Fixed Folder Mode (older accounts) and Dynamic Folder Mode (newer accounts). This plugin now supports both modes by default.
+
+### What is Dynamic Folder Mode?
+
+Dynamic Folder Mode separates the folder structure seen in the Cloudinary Media Library UI (`asset_folder`) from the public ID path. This means:
+
+1. Assets can be organized in the Media Library UI independently of their public IDs
+2. Moving assets between folders in the UI doesn't break existing URLs
+3. API responses include `asset_folder` and `display_name` instead of just `folder`
+
+### How This Plugin Handles Dynamic Folder Mode
+
+By default, this plugin now adds the `asset_folder` parameter to all uploads, setting it to match the folder path. This ensures that:
+
+1. Assets appear in the expected folders in Cloudinary's Media Library UI
+2. The folder structure is preserved regardless of your account's folder mode
+3. Public IDs are still generated according to your configuration
+
+You can disable this feature if needed:
+
+```typescript
+cloudinaryStorage({
+  // ... other options
+  supportDynamicFolderMode: false
+})
+```
+
+### Testing Different Folder Modes
+
+If you need to test your application with different folder modes:
+
+1. For Fixed Folder Mode (older accounts):
+   - Assets appear in folders matching their public ID path
+   - API responses include the `folder` field
+
+2. For Dynamic Folder Mode (newer accounts):
+   - Assets appear in folders according to the `asset_folder` parameter
+   - API responses include `asset_folder` and `display_name` fields
+   - Moving assets in the Media Library doesn't change their public IDs
+
 ## Troubleshooting
 
 ### Custom Fields Not Appearing in Admin UI
@@ -477,6 +519,7 @@ const CloudinaryImage = ({ media }) => {
 | `disableLocalStorage` | `boolean` | `true` | Whether to disable local storage |
 | `enabled` | `boolean` | `true` | Whether to enable the plugin |
 | `customFields` | `Field[]` | `[]` | Custom fields to add to the media collection |
+| `supportDynamicFolderMode` | `boolean` | `true` | Whether to support Dynamic Folder Mode for newer Cloudinary accounts |
 | `publicID` | `Object` | (see below) | Public ID configuration options |
 | `publicID.enabled` | `boolean` | `true` | Whether to enable custom public ID generation |
 | `publicID.useFilename` | `boolean` | `true` | Whether to use filename in public ID |
