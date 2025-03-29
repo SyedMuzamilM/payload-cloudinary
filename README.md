@@ -1,5 +1,21 @@
 # Payload CMS Cloudinary Plugin
 
+> **🚨 Version 2.0.0-alpha.1 Now Available**
+>
+> This alpha release introduces significant improvements to public_id handling and type safety. Key features:
+> - Enhanced `public_id` access in upload responses (Beta)
+> - Improved type definitions and compatibility
+> - Better versioning support
+>
+> To try the alpha version:
+> ```bash
+> npm install payload-cloudinary@alpha
+> # or specific version
+> npm install payload-cloudinary@2.0.0-alpha.1
+> ```
+>
+> [View full changelog and migration guide](#version-2-alpha)
+
 A powerful plugin for [Payload CMS](https://payloadcms.com/) that integrates Cloudinary as a storage adapter for media files. This plugin allows you to seamlessly store and manage your media files on Cloudinary while using Payload CMS, with enhanced support for custom fields, public IDs, and versioning.
 
 ## Features
@@ -248,44 +264,95 @@ When using this plugin, your media documents will include the following metadata
 ```typescript
 {
   // Standard PayloadCMS fields
-  id: '12345',
-  filename: 'example.jpg',
-  // ...
-  
-  // Custom fields (if added)
-  alt: 'Example image',
-  caption: 'This is an example image',
-  tags: [{ tag: 'example' }],
-  
+  id: string;
+  filename: string;
+  mimeType: string;
+  filesize: number;
+  width?: number;
+  height?: number;
+  createdAt: string;
+  updatedAt: string;
+
   // Cloudinary metadata
   cloudinary: {
-    public_id: 'your-folder/example_20230101120000',
-    resource_type: 'image',
-    format: 'jpg',
-    secure_url: 'https://res.cloudinary.com/your-cloud/image/upload/your-folder/example_20230101120000.jpg',
-    bytes: 12345,
-    created_at: '2023-01-01T12:00:00Z',
-    width: 800,
-    height: 600,
-    version: '1234567890',
-    version_id: 'a1b2c3d4',
-    
-    // PDF-specific fields (for PDFs only)
-    pages: 5,                // Number of pages in the PDF
-    selected_page: 1,        // Which page to use for thumbnails
-    thumbnail_url: 'https://res.cloudinary.com/your-cloud/image/upload/pg_1,f_jpg/your-folder/example_20230101120000.pdf'
-  },
-  
-  // Version history (if versioning.storeHistory is true)
-  versions: [
-    {
-      version: '1234567890',
-      version_id: 'a1b2c3d4',
-      created_at: '2023-01-01T12:00:00Z',
-      secure_url: 'https://res.cloudinary.com/your-cloud/image/upload/v1234567890/your-folder/example_20230101120000.jpg'
-    }
-  ]
+    public_id: string;           // Cloudinary public ID (Beta in v2)
+    resource_type: string;       // 'image', 'video', or 'raw'
+    format: string;              // File extension
+    secure_url: string;          // Full Cloudinary URL
+    bytes: number;               // File size in bytes
+    created_at: string;          // Cloudinary upload timestamp
+    version: string;             // Current version number
+    version_id: string;          // Current version ID
+    width?: number;              // For images and videos
+    height?: number;             // For images and videos
+    duration?: number;           // For videos only
+  };
+
+  // Version history (if enabled)
+  versions?: Array<{
+    version: string;             // Version number
+    version_id: string;          // Version ID
+    created_at: string;          // Version creation timestamp
+    secure_url: string;          // URL for this version
+  }>;
+
+  // PDF-specific fields (if applicable)
+  cloudinary: {
+    // ... other cloudinary fields
+    pages?: number;              // Number of pages in PDF
+    selected_page?: number;      // Currently selected page for thumbnail
+  };
+
+  // Your custom fields (if configured)
+  alt?: string;
+  caption?: string;
+  tags?: Array<{ tag: string }>;
+  // ... any other custom fields
 }
+```
+
+### Accessing Public IDs (Beta in v2)
+
+The `public_id` field is now directly accessible in both upload responses and document queries:
+
+```typescript
+// In upload response
+const uploadResponse = await payload.create({
+  collection: 'media',
+  data: {
+    filename: 'example.jpg',
+    mimeType: 'image/jpeg',
+  },
+});
+const publicId = uploadResponse.data.cloudinary.public_id;
+
+// In document queries
+const doc = await payload.findByID({
+  collection: 'media',
+  id: 'your-doc-id',
+});
+const publicId = doc.cloudinary.public_id;
+```
+
+### Version History
+
+If versioning is enabled, you can access the complete version history:
+
+```typescript
+const doc = await payload.findByID({
+  collection: 'media',
+  id: 'your-doc-id',
+});
+
+// Access all versions
+doc.versions?.forEach(version => {
+  console.log(`Version ${version.version} created at ${version.created_at}`);
+  console.log(`URL: ${version.secure_url}`);
+});
+
+// Access current version
+console.log(`Current version: ${doc.cloudinary.version}`);
+console.log(`Current version ID: ${doc.cloudinary.version_id}`);
 ```
 
 ## Custom Media Collection
