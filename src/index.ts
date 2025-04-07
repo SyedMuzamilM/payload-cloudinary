@@ -118,25 +118,22 @@ export const cloudinaryStorage: CloudinaryStoragePlugin =
           }
         }
 
-        // Then, inject our custom fields if they're provided
-        if (cloudinaryOptions.customFields && cloudinaryOptions.customFields.length > 0) {
-          // Generate all fields we need to add
-          const customFields = generateCustomFields(cloudinaryOptions.customFields);
-          const versionFieldsToAdd = cloudinaryOptions.versioning?.enabled && 
-                                    cloudinaryOptions.versioning?.storeHistory ? 
-                                    versionFields : [];
-          
-          // Make sure fields is an array
-          modifiedCollection.fields = modifiedCollection.fields || [];
-          
-          // Add our fields to the collection
-          modifiedCollection.fields = [
-            ...modifiedCollection.fields,
-            ...customFields,
-            ...cloudinaryFields,
-            ...versionFieldsToAdd,
-          ];
-        }
+        // Generate all fields we need to add
+        const customFields = generateCustomFields(cloudinaryOptions.customFields || []);
+        const versionFieldsToAdd = cloudinaryOptions.versioning?.enabled && 
+                                  cloudinaryOptions.versioning?.storeHistory ? 
+                                  versionFields : [];
+        
+        // Make sure fields is an array
+        modifiedCollection.fields = modifiedCollection.fields || [];
+        
+        // Add our fields to the collection
+        modifiedCollection.fields = [
+          ...modifiedCollection.fields,
+          ...customFields,
+          ...cloudinaryFields, // Always add Cloudinary fields
+          ...versionFieldsToAdd,
+        ];
 
         return modifiedCollection;
       }),
