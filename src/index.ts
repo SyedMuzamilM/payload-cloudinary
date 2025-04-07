@@ -25,6 +25,7 @@ import type {
   CloudinaryAdapter,
   PayloadDocument
 } from './types'
+import { beforeRead } from './collections/Media/hooks/'
 
 export type { CloudinaryStorageOptions, CloudinaryStoragePlugin, CloudinaryMetadata, CloudinaryAdapter }
 export { generateMediaCollection }
@@ -134,6 +135,10 @@ export const cloudinaryStorage: CloudinaryStoragePlugin =
           ...cloudinaryFields, // Always add Cloudinary fields
           ...versionFieldsToAdd,
         ];
+
+        modifiedCollection.hooks = {
+          beforeRead: [beforeRead],
+        };
 
         return modifiedCollection;
       }),

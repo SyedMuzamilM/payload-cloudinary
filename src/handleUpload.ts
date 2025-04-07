@@ -169,15 +169,16 @@ export const getHandleUpload =
     const uploadOptions: UploadApiOptions = {
       ...getUploadOptions(file.filename, versioning),
       public_id: publicIdValue,
-      folder: path.dirname(publicIdValue), // Extract folder from public_id
+      // folder: path.dirname(publicIdValue), // Extract folder from public_id
       use_filename: publicID?.useFilename !== false,
       unique_filename: publicID?.uniqueFilename !== false,
+      asset_folder: folderPath,
     };
 
     // Add asset_folder parameter for Dynamic Folder Mode
-    if (supportDynamicFolderMode) {
-      uploadOptions.asset_folder = folderPath;
-    }
+    // if (supportDynamicFolderMode) {
+    //   uploadOptions.asset_folder = folderPath;
+    // }
 
     return new Promise((resolve, reject) => {
       try {
