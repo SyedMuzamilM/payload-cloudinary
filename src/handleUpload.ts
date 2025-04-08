@@ -15,7 +15,6 @@ interface Args {
   prefix?: string;
   versioning?: CloudinaryVersioningOptions;
   publicID?: PublicIDOptions;
-  supportDynamicFolderMode?: boolean;
 }
 
 const getUploadOptions = (filename: string, versioning?: CloudinaryVersioningOptions): UploadApiOptions => {
@@ -155,7 +154,7 @@ const getPDFPageCount = async (
 };
 
 export const getHandleUpload =
-  ({ cloudinary, folder, prefix = "", versioning, publicID, supportDynamicFolderMode = true }: Args): HandleUpload =>
+  ({ cloudinary, folder, prefix = "", versioning, publicID }: Args): HandleUpload =>
   async ({ data, file }) => {
     // Construct the folder path with proper handling of prefix
     const folderPath = data.prefix 
@@ -174,11 +173,6 @@ export const getHandleUpload =
       unique_filename: publicID?.uniqueFilename !== false,
       asset_folder: folderPath,
     };
-
-    // Add asset_folder parameter for Dynamic Folder Mode
-    // if (supportDynamicFolderMode) {
-    //   uploadOptions.asset_folder = folderPath;
-    // }
 
     return new Promise((resolve, reject) => {
       try {
@@ -200,7 +194,8 @@ export const getHandleUpload =
                 secure_url: result.secure_url,
                 bytes: result.bytes,
                 created_at: result.created_at,
-                version: result.version,
+                // Ensure version is always stored as string to match field type
+                version: result.version ? String(result.version) : result.version,
                 version_id: result.version_id,
               };
 
@@ -249,10 +244,11 @@ export const getHandleUpload =
               if (versioning?.enabled && versioning?.storeHistory) {
                 data.versions = data.versions || [];
                 data.versions.push({
-                  version: result.version,
-                  version_id: result.version_id,
-                  created_at: result.created_at,
-                  secure_url: result.secure_url,
+                  // Store version as a string to match the field type expectation
+                  version: result.version ? String(result.version) : "",
+                  version_id: result.version_id || "",
+                  created_at: result.created_at || new Date().toISOString(),
+                  secure_url: result.secure_url || "",
                 });
               }
             }
