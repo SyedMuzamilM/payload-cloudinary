@@ -1,25 +1,25 @@
 import type { HandleUpload } from "@payloadcms/plugin-cloud-storage/types";
 import type { CollectionConfig } from "payload";
-import type { v2 as cloudinaryType } from "cloudinary";
+import type { v2 as cloudinaryType, UploadApiErrorResponse, UploadApiResponse } from "cloudinary"; // Import specific error type
 import type { UploadApiOptions } from "cloudinary";
 import type { CloudinaryVersioningOptions, PublicIDOptions } from "./types";
 
 import path from "path";
 import stream from "stream";
-import { getResourceType } from "./utils";
+import { getResourceType } from "./utils"; // Assuming getResourceType is in utils
 
 interface Args {
   cloudinary: typeof cloudinaryType;
   collection: CollectionConfig;
-  folder: string;
-  prefix?: string;
+  folder: string; // This is the base folder from plugin options
+  prefix?: string; // This is args.prefix (collection-level prefix)
   versioning?: CloudinaryVersioningOptions;
   publicID?: PublicIDOptions;
 }
 
 const getUploadOptions = (filename: string, versioning?: CloudinaryVersioningOptions): UploadApiOptions => {
   const ext = path.extname(filename).toLowerCase();
-  const resourceType = getResourceType(ext);
+  const resourceType = getResourceType(ext); // getResourceType needs file extension
   const baseOptions: UploadApiOptions = {
     resource_type: resourceType,
     use_filename: true,
@@ -47,11 +47,9 @@ const getUploadOptions = (filename: string, versioning?: CloudinaryVersioningOpt
       if (ext === '.pdf') {
         return {
           ...baseOptions,
-          resource_type: "raw",
+          resource_type: "raw", // Explicitly set for PDF
           use_filename: true,
-          // When uploading PDFs, add a parameter to extract page count
           pages: true,
-          // Set an eager transformation to create a thumbnail of first page
           eager: [{ format: 'jpg', page: 1, quality: "auto" }],
           eager_async: true,
         };
@@ -71,24 +69,27 @@ const getUploadOptions = (filename: string, versioning?: CloudinaryVersioningOpt
  * @param str String to sanitize
  * @returns Sanitized string
  */
-const sanitizeForPublicID = (str: string): string => {
+export const sanitizeForPublicID = (str: string): string => {
   return str
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, '-') // Replace any character that's not a letter or number with a hyphen
-    .replace(/-+/g, '-') // Replace consecutive hyphens with a single hyphen
-    .replace(/^-|-$/g, ''); // Remove leading or trailing hyphens
+    .replace(/[^a-z0-9_.-]/g, '-') // Allow letters, numbers, underscore, dot, hyphen. Replace others with hyphen.
+    .replace(/-+/g, '-')      // Replace consecutive hyphens with a single hyphen
+    .replace(/^-|-$/g, '');   // Remove leading or trailing hyphens
+    // Note: Dots are allowed by Cloudinary in public_ids, so we don't strip them here.
 };
 
 /**
  * Generate a public ID based on the publicID options
  * @param filename Original filename
  * @param folderPath Folder path
+ * @param resourceType Resource type ('image', 'video', 'raw', 'auto')
  * @param publicIDOptions Public ID options
  * @returns Generated public ID
  */
-const generatePublicID = (
-  filename: string, 
-  folderPath: string, 
+export const generatePublicID = (
+  filename: string,
+  folderPath: string,
+  resourceType: string,
   publicIDOptions?: PublicIDOptions
 ): string => {
   // If a custom generator function is provided, use it
@@ -96,28 +97,50 @@ const generatePublicID = (
     return publicIDOptions.generatePublicID(filename, path.dirname(folderPath), path.basename(folderPath));
   }
 
-  // If publicID is disabled, just return the path without extension but with sanitization
+  const shouldKeepExtension = publicIDOptions?.keepRawExtension === true && resourceType === 'raw';
+  let finalNamePart: string;
+
   if (publicIDOptions?.enabled === false) {
-    const filenameWithoutExt = path.basename(filename, path.extname(filename));
-    const sanitizedFilename = sanitizeForPublicID(filenameWithoutExt);
-    return path.posix.join(folderPath, sanitizedFilename);
+    // Custom public_id generation is disabled by user, but we still need to process the name
+    const nameToProcess = path.basename(filename);
+    if (shouldKeepExtension) {
+      const ext = path.extname(nameToProcess);
+      const nameWithoutExt = path.basename(nameToProcess, ext);
+      // Sanitize only the name part, then append the original (unsanitized) extension
+      finalNamePart = sanitizeForPublicID(nameWithoutExt) + ext;
+    } else {
+      const nameWithoutExt = path.basename(nameToProcess, path.extname(nameToProcess));
+      finalNamePart = sanitizeForPublicID(nameWithoutExt);
+    }
+    return path.posix.join(folderPath, finalNamePart);
   }
 
-  // Default behavior - use filename (if enabled) and make it unique (if enabled)
+  // Default behavior or publicIDOptions.enabled is true/undefined
   const useFilename = publicIDOptions?.useFilename !== false;
   const uniqueFilename = publicIDOptions?.uniqueFilename !== false;
-  
   const timestamp = uniqueFilename ? `_${Date.now()}` : '';
-  
+
   if (useFilename) {
-    // Use the filename as part of the public ID (sanitized)
-    const filenameWithoutExt = path.basename(filename, path.extname(filename));
-    const sanitizedFilename = sanitizeForPublicID(filenameWithoutExt);
-    return path.posix.join(folderPath, `${sanitizedFilename}${timestamp}`);
+    const nameToProcess = path.basename(filename);
+    let baseNameSegment: string;
+
+    if (shouldKeepExtension) {
+      const ext = path.extname(nameToProcess);
+      const nameWithoutExt = path.basename(nameToProcess, ext);
+      // Sanitize only the name part, then append the original (unsanitized) extension
+      baseNameSegment = sanitizeForPublicID(nameWithoutExt) + ext;
+    } else {
+      const nameWithoutExt = path.basename(nameToProcess, path.extname(nameToProcess));
+      baseNameSegment = sanitizeForPublicID(nameWithoutExt);
+    }
+    // Correctly apply timestamp to the base name segment
+    finalNamePart = `${baseNameSegment}${timestamp}`;
+  } else {
+    // Not using filename, keepRawExtension is ignored here
+    // Also, apply timestamp if uniqueFilename is true
+    finalNamePart = `media${timestamp}`;
   }
-  
-  // Generate a timestamp-based ID if not using filename
-  return path.posix.join(folderPath, `media${timestamp}`);
+  return path.posix.join(folderPath, finalNamePart);
 };
 
 /**
@@ -130,45 +153,68 @@ const isPDF = (filename: string): boolean => {
 
 /**
  * Get PDF page count from Cloudinary
- * This is a separate function to avoid async/await linter issues
  */
 const getPDFPageCount = async (
   cloudinary: typeof cloudinaryType,
-  publicId: string, 
+  publicId: string,
   defaultCount = 1
 ): Promise<number> => {
   try {
-    const pdfInfo = await cloudinary.api.resource(publicId, { 
+    const pdfInfo = await cloudinary.api.resource(publicId, {
       resource_type: 'raw',
-      pages: true 
+      pages: true
     });
-    
     if (pdfInfo && pdfInfo.pages) {
       return pdfInfo.pages;
     }
   } catch (error) {
     console.error("Error getting PDF page count:", error);
   }
-  
   return defaultCount;
 };
 
 export const getHandleUpload =
   ({ cloudinary, folder, prefix = "", versioning, publicID }: Args): HandleUpload =>
   async ({ data, file }) => {
-    // Construct the folder path with proper handling of prefix
-    const folderPath = data.prefix 
-      ? path.posix.join(folder, data.prefix) 
-      : path.posix.join(folder, prefix);
-    
-    // Generate the public ID based on options
-    const publicIdValue = generatePublicID(file.filename, folderPath, publicID);
-    
-    // Basic upload options
+    let chosenPrefixValue: string | undefined = undefined;
+    let prefixSource: 'doc' | 'collection' | 'none' = 'none';
+
+    if (data.prefix && typeof data.prefix === 'string' && data.prefix.trim() !== '') {
+      chosenPrefixValue = data.prefix.trim();
+      prefixSource = 'doc';
+    } else if (prefix && prefix.trim() !== '') {
+      chosenPrefixValue = prefix.trim();
+      prefixSource = 'collection';
+    }
+
+    const folderPath = chosenPrefixValue
+      ? path.posix.join(folder, chosenPrefixValue)
+      : folder;
+
+    // Determine resourceType early
+    const fileExtension = path.extname(file.filename).toLowerCase();
+    const resourceType = getResourceType(fileExtension); // getResourceType needs file extension
+
+    // Generate the public ID based on options, now including resourceType
+    const publicIdValue = generatePublicID(file.filename, folderPath, resourceType, publicID);
+
+    // --- DIAGNOSTIC LOGGING ---
+    console.log(`[CloudinaryUpload] Base folder from plugin options: "${folder}"`);
+    if (prefixSource === 'doc') {
+      console.log(`[CloudinaryUpload] Using prefix from document field "prefix": "${chosenPrefixValue}"`);
+    } else if (prefixSource === 'collection') {
+      console.log(`[CloudinaryUpload] Using prefix from collection configuration: "${chosenPrefixValue}"`);
+    } else {
+      console.log('[CloudinaryUpload] No prefix defined or used (neither in document field nor collection config).');
+    }
+    console.log(`[CloudinaryUpload] Target Cloudinary folderPath for asset_folder & public_id base: "${folderPath}"`);
+    console.log(`[CloudinaryUpload] Determined resourceType for file "${file.filename}": "${resourceType}"`);
+    console.log(`[CloudinaryUpload] Generated public_id for Cloudinary: "${publicIdValue}"`);
+    // --- END DIAGNOSTIC LOGGING ---
+
     const uploadOptions: UploadApiOptions = {
-      ...getUploadOptions(file.filename, versioning),
+      ...getUploadOptions(file.filename, versioning), // getUploadOptions also determines resource_type for the API call
       public_id: publicIdValue,
-      // folder: path.dirname(publicIdValue), // Extract folder from public_id
       use_filename: publicID?.useFilename !== false,
       unique_filename: publicID?.uniqueFilename !== false,
       asset_folder: folderPath,
@@ -178,30 +224,38 @@ export const getHandleUpload =
       try {
         const uploadStream = cloudinary.uploader.upload_stream(
           uploadOptions,
-          async (error, result) => {
+          async (error?: UploadApiErrorResponse, result?: UploadApiResponse) => { // Add types for error and result
             if (error) {
-              console.error("Error uploading to Cloudinary:", error);
-              reject(error);
+              // Log the full original error first
+              console.error("[CloudinaryUpload] Full Cloudinary upload error:", error);
+
+              // Check for file size limit error indicators
+              if (error.http_code && (error.http_code === 400 || error.http_code === 413) && 
+                  error.message && /size|limit|large/i.test(error.message)) {
+                console.error(`[CloudinaryUpload] Friendly Error: Upload likely failed due to file size limits. 
+                Cloudinary message: "${error.message}". 
+                Please check:
+                1. Your Cloudinary account's file size restrictions (plan limits, per-file limits for specific resource types).
+                2. Any request body size limits on your server or proxy if you are not uploading directly from the client (e.g., Nginx 'client_max_body_size', Node.js body parser limits).`);
+              }
+              reject(error); // Reject with the original error object
               return;
             }
 
             if (result) {
-              const isPDFFile = isPDF(file.filename);
+              const isPDFFile = isPDF(file.filename); // isPDF also uses file.filename
               const baseMetadata = {
                 public_id: result.public_id,
-                resource_type: result.resource_type,
+                resource_type: result.resource_type, // This is Cloudinary's determined resource_type
                 format: result.format,
                 secure_url: result.secure_url,
                 bytes: result.bytes,
                 created_at: result.created_at,
-                // Ensure version is always stored as string to match field type
                 version: result.version ? String(result.version) : result.version,
                 version_id: result.version_id,
               };
 
-              // Add metadata based on resource type
               let typeSpecificMetadata = {};
-              
               if (result.resource_type === "video") {
                 typeSpecificMetadata = {
                   duration: result.duration,
@@ -214,37 +268,28 @@ export const getHandleUpload =
                   width: result.width,
                   height: result.height,
                 };
-              } else if (isPDFFile) {
-                // Handle PDF specific metadata
+              } else if (isPDFFile) { // Check if original file was PDF
                 let pageCount = 1;
-                
-                // Try to get page count from result, otherwise call the API
                 if (result.pages) {
                   pageCount = result.pages;
                 } else {
-                  // Use the separate async function to get page count
                   pageCount = await getPDFPageCount(cloudinary, result.public_id);
                 }
-                
                 typeSpecificMetadata = {
                   pages: pageCount,
-                  selected_page: 1, // Default to first page for thumbnails
-                  // Generate a thumbnail URL for the PDF
+                  selected_page: 1,
                   thumbnail_url: `https://res.cloudinary.com/${cloudinary.config().cloud_name}/image/upload/pg_1/q_auto,f_jpg/${result.public_id}.jpg`
                 };
               }
 
-              // Combine base and type-specific metadata
               data.cloudinary = {
                 ...baseMetadata,
                 ...typeSpecificMetadata,
               };
 
-              // If versioning and history storage is enabled, store version info
               if (versioning?.enabled && versioning?.storeHistory) {
                 data.versions = data.versions || [];
                 data.versions.push({
-                  // Store version as a string to match the field type expectation
                   version: result.version ? String(result.version) : "",
                   version_id: result.version_id || "",
                   created_at: result.created_at || new Date().toISOString(),
@@ -252,20 +297,16 @@ export const getHandleUpload =
                 });
               }
             }
-
             resolve(data);
           }
         );
 
-        // Create readable stream from buffer or file
         const readableStream = new stream.Readable();
         readableStream.push(file.buffer);
         readableStream.push(null);
-
-        // Pipe the readable stream to the upload stream
         readableStream.pipe(uploadStream);
-      } catch (error) {
-        console.error("Error in upload process:", error);
+      } catch (error) { // This catch block is for errors during stream creation or piping
+        console.error("[CloudinaryUpload] Error in upload process (before Cloudinary stream):", error);
         reject(error);
       }
     });

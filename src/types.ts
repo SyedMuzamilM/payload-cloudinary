@@ -92,6 +92,12 @@ export type PublicIDOptions = {
    * @returns A string to use as the public ID
    */
   generatePublicID?: (filename: string, prefix?: string, folder?: string) => string
+
+  /**
+   * For 'raw' assets, keep the original file extension in the public_id.
+   * @default false
+   */
+  keepRawExtension?: boolean;
 }
 
 export type CloudinaryStorageOptions = {

@@ -1,17 +1,19 @@
 # Payload CMS Cloudinary Plugin
 
-> **🚨 Version 2.0.0-alpha.1 Now Available**
+> **🚨 Version 2.0.0-alpha.3 Now Available**
 >
-> This alpha release introduces significant improvements to public_id handling and type safety. Key features:
-> - Enhanced `public_id` access in upload responses (Beta)
+> This alpha release introduces significant improvements to public_id handling, type safety, and developer experience. Key features:
+> - Enhanced `public_id` access in upload responses
 > - Improved type definitions and compatibility
 > - Better versioning support
+> - New `keepRawExtension` option for public IDs
+> - Enhanced diagnostic logging for easier troubleshooting
 >
 > To try the alpha version:
 > ```bash
 > npm install payload-cloudinary@alpha
 > # or specific version
-> npm install payload-cloudinary@2.0.0-alpha.1
+> npm install payload-cloudinary@2.0.0-alpha.3
 > ```
 >
 > [View full changelog and migration guide](#version-2-alpha)
@@ -178,6 +180,34 @@ cloudinaryStorage({
 })
 ```
 
+#### Keeping File Extensions for Raw Assets (`keepRawExtension`)
+
+For certain 'raw' assets (e.g., `.txt`, `.json`, `.csv`), you might want the generated `public_id` to retain the original file extension. This can be useful for direct linking or when the extension is critical for how the file is interpreted by other services.
+
+To enable this, use the `keepRawExtension` option within `publicID`:
+
+```typescript
+cloudinaryStorage({
+  // ... other options
+  publicID: {
+    enabled: true,
+    useFilename: true,
+    uniqueFilename: true, // Or false, depending on your needs
+    keepRawExtension: true, // Default: false
+  },
+})
+```
+
+- **Default Behavior**: `keepRawExtension` defaults to `false`.
+- **Effectiveness**: This option is primarily effective when:
+    - `publicID.useFilename` is `true` (or not set, as it defaults to `true`).
+    - The uploaded file is determined to be a 'raw' asset type by Cloudinary (e.g., not an image or video).
+- **Example**:
+    - If `keepRawExtension: true`, uploading `document.txt` might result in a `public_id` like `my-folder/document_timestamp.txt`.
+    - If `keepRawExtension: false` (default), it would likely be `my-folder/document_timestamp`.
+
+When `publicID.enabled` is `false`, `keepRawExtension` can also be used. In this scenario, if `true`, the sanitized filename will retain its extension; otherwise, the extension will be removed.
+
 ### Versioning Support
 
 Enable versioning to keep track of file changes and history:
@@ -275,7 +305,7 @@ When using this plugin, your media documents will include the following metadata
 
   // Cloudinary metadata
   cloudinary: {
-    public_id: string;           // Cloudinary public ID (Beta in v2)
+    public_id: string;           // Cloudinary public ID
     resource_type: string;       // 'image', 'video', or 'raw'
     format: string;              // File extension
     secure_url: string;          // Full Cloudinary URL
@@ -311,9 +341,9 @@ When using this plugin, your media documents will include the following metadata
 }
 ```
 
-### Accessing Public IDs (Beta in v2)
+### Accessing Public IDs
 
-The `public_id` field is now directly accessible in both upload responses and document queries:
+The `public_id` field is directly accessible in both upload responses and document queries:
 
 ```typescript
 // In upload response
@@ -453,13 +483,9 @@ If you need to test your application with different folder modes:
 If your custom fields aren't showing up in the Payload CMS admin panel:
 
 1. **Check Collection Slug**: Ensure the collection slug in your plugin configuration matches exactly with your Media collection slug.
-
 2. **Plugin Order**: Make sure the cloudinaryStorage plugin is registered before your collections are processed. In some cases, it might help to move the plugin earlier in your plugins array.
-
 3. **Check for Field Conflicts**: If you already have fields with the same names in your collection, there might be conflicts. Try using different field names or debug by checking the complete list of fields after plugin initialization.
-
 4. **Restart Your Dev Server**: Sometimes a full restart of your development server is needed after making plugin configuration changes.
-
 5. **Debug Plugin Configuration**: You can add a temporary debug log to see what's happening:
 
 ```typescript
@@ -473,6 +499,27 @@ export default buildConfig({
   }
 });
 ```
+
+### Diagnostic Logging
+
+Recent versions of the plugin include enhanced diagnostic logging to help with common issues:
+
+*   **Folder Path Calculation**: When a file is uploaded, the plugin logs details about how the final Cloudinary `folderPath` and `public_id` are determined. Look for messages prefixed with `[CloudinaryUpload]` in your server console. This can help you verify that your base `folder` and any collection or document-level `prefix` settings are being applied as expected.
+    ```
+    [CloudinaryUpload] Base folder from plugin options: "payload-media"
+    [CloudinaryUpload] Using prefix from collection configuration: "my-collection-prefix"
+    [CloudinaryUpload] Target Cloudinary folderPath for asset_folder & public_id base: "payload-media/my-collection-prefix"
+    [CloudinaryUpload] Generated public_id for Cloudinary: "payload-media/my-collection-prefix/my-image_1234567890"
+    ```
+*   **File Size Limit Errors**: If an upload fails and Cloudinary's response suggests a file size limit was exceeded, the plugin will log a more detailed error message to the server console. This message provides guidance on checking your Cloudinary account limits and any potential server-side or proxy restrictions (like Nginx's `client_max_body_size`).
+    ```
+    [CloudinaryUpload] Full Cloudinary upload error: { ... full error object ... }
+    [CloudinaryUpload] Friendly Error: Upload likely failed due to file size limits. 
+    Cloudinary message: "File size too large". 
+    Please check:
+    1. Your Cloudinary account's file size restrictions (plan limits, per-file limits for specific resource types).
+    2. Any request body size limits on your server or proxy...
+    ```
 
 ## Using Cloudinary URLs in Frontend Components
 
@@ -525,6 +572,7 @@ const CloudinaryImage = ({ media }) => {
 | `publicID.useFilename` | `boolean` | `true` | Whether to use filename in public ID |
 | `publicID.uniqueFilename` | `boolean` | `true` | Whether to ensure unique filenames |
 | `publicID.generatePublicID` | `Function` | (built-in) | Custom function to generate public ID |
+| `publicID.keepRawExtension` | `boolean` | `false` | For 'raw' assets, keeps the original file extension in the `public_id`. Effective when `useFilename` is true. |
 | `versioning` | `Object` | (see below) | Versioning configuration options |
 | `versioning.enabled` | `boolean` | `false` | Whether to enable versioning support |
 | `versioning.autoInvalidate` | `boolean` | `false` | Whether to invalidate old versions in CDN |
