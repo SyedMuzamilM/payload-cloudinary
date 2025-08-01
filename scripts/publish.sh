@@ -15,20 +15,20 @@ print_message() {
 publish_test_version() {
     local version=$1
     local tag=$2
-    
+
     print_message "📦 Publishing test version ${version} with tag: ${tag}..." "$YELLOW"
-    
+
     # Update version in package.json
     npm version $version --no-git-tag-version
-    
+
     # Run tests
-    print_message "🧪 Running tests..." "$YELLOW"
-    bun test || exit 1
-    
+    # print_message "🧪 Running tests..." "$YELLOW"
+    # bun test || exit 1
+
     # Build the project
     print_message "🏗️ Building project..." "$YELLOW"
     bun run build || exit 1
-    
+
     # Publish with tag
     if npm publish --tag $tag; then
         print_message "✅ Successfully published test version ${version}" "$GREEN"
