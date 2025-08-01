@@ -11,29 +11,25 @@ print_message() {
     echo -e "${2}${1}${NC}"
 }
 
-# Function to publish test version
-publish_test_version() {
+# Function to publish a version
+publish_version() {
     local version=$1
     local tag=$2
-    
-    print_message "📦 Publishing test version ${version} with tag: ${tag}..." "$YELLOW"
-    
+
+    print_message "📦 Publishing version ${version} with tag: ${tag}..." "$YELLOW"
+
     # Update version in package.json
     npm version $version --no-git-tag-version
-    
-    # Run tests
-    print_message "🧪 Running tests..." "$YELLOW"
-    bun test || exit 1
-    
+
     # Build the project
     print_message "🏗️ Building project..." "$YELLOW"
     bun run build || exit 1
-    
+
     # Publish with tag
     if npm publish --tag $tag; then
-        print_message "✅ Successfully published test version ${version}" "$GREEN"
+        print_message "✅ Successfully published version ${version}" "$GREEN"
     else
-        print_message "❌ Failed to publish test version" "$RED"
+        print_message "❌ Failed to publish version" "$RED"
         exit 1
     fi
 }
@@ -48,13 +44,14 @@ fi
 current_version=$(node -p "require('./package.json').version")
 print_message "Current version: $current_version" "$YELLOW"
 
-# Select test version type
-echo "Select test version type:"
+# Select version type
+echo "Select version type:"
 echo "1) Development (dev)"
 echo "2) Alpha"
 echo "3) Beta"
 echo "4) Release Candidate (rc)"
-read -p "Enter choice (1-4): " version_type
+echo "5) Release"
+read -p "Enter choice (1-5): " version_type
 
 # Get base version
 read -p "Enter base version (current is $current_version): " base_version
@@ -78,7 +75,11 @@ case $version_type in
     4)
         read -p "Enter RC number (e.g., 1): " rc_num
         version="${base_version}-rc.${rc_num}"
-        tag="rc"
+        tag="next"
+        ;;
+    5)
+        version="$base_version"
+        tag="latest"
         ;;
     *)
         print_message "❌ Invalid choice" "$RED"
@@ -86,12 +87,12 @@ case $version_type in
         ;;
 esac
 
-# Publish test version
-publish_test_version $version $tag
+# Publish version
+publish_version $version $tag
 
 # Create git tag
 git add package.json
-git commit -m "chore: release v$version"
+git commit -m "chore(release): v${version}"
 git tag -a "v$version" -m "Release v$version"
 
 # Push to repository

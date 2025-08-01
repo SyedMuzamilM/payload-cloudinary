@@ -23,6 +23,9 @@ export const getHandler =
       const fileExt = path.extname(filename).toLowerCase();
       const resourceType = getResourceType(fileExt);
       
+      // Check if this is a request for a PDF thumbnail
+      const isPdfThumbnail = fileExt === '.pdf' && req.url?.includes('thumbnail=true');
+      
       // Generate the public_id - keep the extension for better identification
       // This is different from the upload behavior which removes extensions
       const publicId = filePath;
@@ -34,7 +37,19 @@ export const getHandler =
         });
         
         if (result && result.secure_url) {
-          const response = await fetch(result.secure_url);
+          let url = result.secure_url;
+          
+          // If this is a PDF thumbnail request, add Cloudinary transformation
+          if (isPdfThumbnail) {
+            // Extract the base URL and add transformation for first page of PDF
+            const urlParts = url.split('/upload/');
+            if (urlParts.length === 2) {
+              // Add transformation to extract first page as image
+              url = urlParts[0] + '/upload/pg_1,f_jpg,q_auto/' + urlParts[1];
+            }
+          }
+          
+          const response = await fetch(url);
           
           if (!response.ok) {
             return new Response(null, { status: 404, statusText: "Not Found" });
@@ -77,7 +92,19 @@ export const getHandler =
           });
           
           if (fallbackResult && fallbackResult.secure_url) {
-            const response = await fetch(fallbackResult.secure_url);
+            let url = fallbackResult.secure_url;
+            
+            // If this is a PDF thumbnail request, add Cloudinary transformation
+            if (isPdfThumbnail) {
+              // Extract the base URL and add transformation for first page of PDF
+              const urlParts = url.split('/upload/');
+              if (urlParts.length === 2) {
+                // Add transformation to extract first page as image
+                url = urlParts[0] + '/upload/pg_1,f_jpg,q_auto/' + urlParts[1];
+              }
+            }
+            
+            const response = await fetch(url);
             
             if (!response.ok) {
               return new Response(null, { status: 404, statusText: "Not Found" });
