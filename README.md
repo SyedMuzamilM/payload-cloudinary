@@ -1,20 +1,20 @@
 # Payload CMS Cloudinary Plugin
 
-> **🚨 Version 2.0.0-alpha.1 Now Available**
+> **🚨 Version 2.0.0-rc.1 Now Available**
 >
-> This alpha release introduces significant improvements to public_id handling and type safety. Key features:
-> - Enhanced `public_id` access in upload responses (Beta)
+> This release candidate introduces significant improvements to public_id handling and type safety. Key features:
+> - Enhanced `public_id` access in upload responses
 > - Improved type definitions and compatibility
 > - Better versioning support
 >
-> To try the alpha version:
+> To try the release candidate:
 > ```bash
-> npm install payload-cloudinary@alpha
+> npm install payload-cloudinary@next
 > # or specific version
-> npm install payload-cloudinary@2.0.0-alpha.1
+> npm install payload-cloudinary@2.0.0-rc.1
 > ```
 >
-> [View full changelog and migration guide](#version-2-alpha)
+> [View full changelog and migration guide](#version-2)
 
 A powerful plugin for [Payload CMS](https://payloadcms.com/) that integrates Cloudinary as a storage adapter for media files. This plugin allows you to seamlessly store and manage your media files on Cloudinary while using Payload CMS, with enhanced support for custom fields, public IDs, and versioning.
 
@@ -275,7 +275,7 @@ When using this plugin, your media documents will include the following metadata
 
   // Cloudinary metadata
   cloudinary: {
-    public_id: string;           // Cloudinary public ID (Beta in v2)
+    public_id: string;           // Cloudinary public ID
     resource_type: string;       // 'image', 'video', or 'raw'
     format: string;              // File extension
     secure_url: string;          // Full Cloudinary URL
@@ -311,7 +311,7 @@ When using this plugin, your media documents will include the following metadata
 }
 ```
 
-### Accessing Public IDs (Beta in v2)
+### Accessing Public IDs
 
 The `public_id` field is now directly accessible in both upload responses and document queries:
 
