@@ -17,7 +17,10 @@ interface Args {
   publicID?: PublicIDOptions;
 }
 
-const getUploadOptions = (filename: string, versioning?: CloudinaryVersioningOptions): UploadApiOptions => {
+const getUploadOptions = (
+  filename: string,
+  versioning?: CloudinaryVersioningOptions,
+): UploadApiOptions => {
   const ext = path.extname(filename).toLowerCase();
   const resourceType = getResourceType(ext);
   const baseOptions: UploadApiOptions = {
@@ -44,7 +47,7 @@ const getUploadOptions = (filename: string, versioning?: CloudinaryVersioningOpt
       };
     case "raw":
       // For PDFs, add a pages parameter to count the pages and create a thumbnail
-      if (ext === '.pdf') {
+      if (ext === ".pdf") {
         return {
           ...baseOptions,
           resource_type: "raw",
@@ -52,7 +55,7 @@ const getUploadOptions = (filename: string, versioning?: CloudinaryVersioningOpt
           // When uploading PDFs, add a parameter to extract page count
           pages: true,
           // Set an eager transformation to create a thumbnail of first page
-          eager: [{ format: 'jpg', page: 1, quality: "auto" }],
+          eager: [{ format: "jpg", page: 1, quality: "auto" }],
           eager_async: true,
         };
       }
@@ -74,9 +77,9 @@ const getUploadOptions = (filename: string, versioning?: CloudinaryVersioningOpt
 const sanitizeForPublicID = (str: string): string => {
   return str
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, '-') // Replace any character that's not a letter or number with a hyphen
-    .replace(/-+/g, '-') // Replace consecutive hyphens with a single hyphen
-    .replace(/^-|-$/g, ''); // Remove leading or trailing hyphens
+    .replace(/[^a-z0-9]/g, "-") // Replace any character that's not a letter or number with a hyphen
+    .replace(/-+/g, "-") // Replace consecutive hyphens with a single hyphen
+    .replace(/^-|-$/g, ""); // Remove leading or trailing hyphens
 };
 
 /**
@@ -87,13 +90,17 @@ const sanitizeForPublicID = (str: string): string => {
  * @returns Generated public ID
  */
 const generatePublicID = (
-  filename: string, 
-  folderPath: string, 
-  publicIDOptions?: PublicIDOptions
+  filename: string,
+  folderPath: string,
+  publicIDOptions?: PublicIDOptions,
 ): string => {
   // If a custom generator function is provided, use it
   if (publicIDOptions?.generatePublicID) {
-    return publicIDOptions.generatePublicID(filename, path.dirname(folderPath), path.basename(folderPath));
+    return publicIDOptions.generatePublicID(
+      filename,
+      path.dirname(folderPath),
+      path.basename(folderPath),
+    );
   }
 
   // If publicID is disabled, just return the path without extension but with sanitization
@@ -106,16 +113,16 @@ const generatePublicID = (
   // Default behavior - use filename (if enabled) and make it unique (if enabled)
   const useFilename = publicIDOptions?.useFilename !== false;
   const uniqueFilename = publicIDOptions?.uniqueFilename !== false;
-  
-  const timestamp = uniqueFilename ? `_${Date.now()}` : '';
-  
+
+  const timestamp = uniqueFilename ? `_${Date.now()}` : "";
+
   if (useFilename) {
     // Use the filename as part of the public ID (sanitized)
     const filenameWithoutExt = path.basename(filename, path.extname(filename));
     const sanitizedFilename = sanitizeForPublicID(filenameWithoutExt);
     return path.posix.join(folderPath, `${sanitizedFilename}${timestamp}`);
   }
-  
+
   // Generate a timestamp-based ID if not using filename
   return path.posix.join(folderPath, `media${timestamp}`);
 };
@@ -125,7 +132,7 @@ const generatePublicID = (
  */
 const isPDF = (filename: string): boolean => {
   const ext = path.extname(filename).toLowerCase();
-  return ext === '.pdf';
+  return ext === ".pdf";
 };
 
 /**
@@ -134,36 +141,42 @@ const isPDF = (filename: string): boolean => {
  */
 const getPDFPageCount = async (
   cloudinary: typeof cloudinaryType,
-  publicId: string, 
-  defaultCount = 1
+  publicId: string,
+  defaultCount = 1,
 ): Promise<number> => {
   try {
-    const pdfInfo = await cloudinary.api.resource(publicId, { 
-      resource_type: 'raw',
-      pages: true 
+    const pdfInfo = await cloudinary.api.resource(publicId, {
+      resource_type: "raw",
+      pages: true,
     });
-    
+
     if (pdfInfo && pdfInfo.pages) {
       return pdfInfo.pages;
     }
   } catch (error) {
     console.error("Error getting PDF page count:", error);
   }
-  
+
   return defaultCount;
 };
 
 export const getHandleUpload =
-  ({ cloudinary, folder, prefix = "", versioning, publicID }: Args): HandleUpload =>
+  ({
+    cloudinary,
+    folder,
+    prefix = "",
+    versioning,
+    publicID,
+  }: Args): HandleUpload =>
   async ({ data, file }) => {
     // Construct the folder path with proper handling of prefix
-    const folderPath = data.prefix 
-      ? path.posix.join(folder, data.prefix) 
+    const folderPath = data.prefix
+      ? path.posix.join(folder, data.prefix)
       : path.posix.join(folder, prefix);
-    
+
     // Generate the public ID based on options
     const publicIdValue = generatePublicID(file.filename, folderPath, publicID);
-    
+
     // Basic upload options
     const uploadOptions: UploadApiOptions = {
       ...getUploadOptions(file.filename, versioning),
@@ -195,13 +208,15 @@ export const getHandleUpload =
                 bytes: result.bytes,
                 created_at: result.created_at,
                 // Ensure version is always stored as string to match field type
-                version: result.version ? String(result.version) : result.version,
+                version: result.version
+                  ? String(result.version)
+                  : result.version,
                 version_id: result.version_id,
               };
 
               // Add metadata based on resource type
               let typeSpecificMetadata = {};
-              
+
               if (result.resource_type === "video") {
                 typeSpecificMetadata = {
                   duration: result.duration,
@@ -217,20 +232,23 @@ export const getHandleUpload =
               } else if (isPDFFile) {
                 // Handle PDF specific metadata
                 let pageCount = 1;
-                
+
                 // Try to get page count from result, otherwise call the API
                 if (result.pages) {
                   pageCount = result.pages;
                 } else {
                   // Use the separate async function to get page count
-                  pageCount = await getPDFPageCount(cloudinary, result.public_id);
+                  pageCount = await getPDFPageCount(
+                    cloudinary,
+                    result.public_id,
+                  );
                 }
-                
+
                 typeSpecificMetadata = {
                   pages: pageCount,
                   selected_page: 1, // Default to first page for thumbnails
                   // Generate a thumbnail URL for the PDF
-                  thumbnail_url: `https://res.cloudinary.com/${cloudinary.config().cloud_name}/image/upload/pg_1/q_auto,f_jpg/${result.public_id}.jpg`
+                  thumbnail_url: `https://res.cloudinary.com/${cloudinary.config().cloud_name}/image/upload/pg_1/q_auto,f_jpg/${result.public_id}.jpg`,
                 };
               }
 
@@ -254,7 +272,7 @@ export const getHandleUpload =
             }
 
             resolve(data);
-          }
+          },
         );
 
         // Create readable stream from buffer or file
