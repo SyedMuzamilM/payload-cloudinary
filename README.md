@@ -1,21 +1,5 @@
 # Payload CMS Cloudinary Plugin
 
-> **🚨 Version 2.0.0-rc.1 Now Available**
->
-> This release candidate introduces significant improvements to public_id handling and type safety. Key features:
-> - Enhanced `public_id` access in upload responses
-> - Improved type definitions and compatibility
-> - Better versioning support
->
-> To try the release candidate:
-> ```bash
-> npm install payload-cloudinary@next
-> # or specific version
-> npm install payload-cloudinary@2.0.0-rc.1
-> ```
->
-> [View full changelog and migration guide](#version-2)
-
 A powerful plugin for [Payload CMS](https://payloadcms.com/) that integrates Cloudinary as a storage adapter for media files. This plugin allows you to seamlessly store and manage your media files on Cloudinary while using Payload CMS, with enhanced support for custom fields, public IDs, and versioning.
 
 ## Features
@@ -36,7 +20,7 @@ A powerful plugin for [Payload CMS](https://payloadcms.com/) that integrates Clo
 
 ```bash
 npm install payload-cloudinary
-# or 
+# or
 yarn add payload-cloudinary
 # or
 pnpm add payload-cloudinary
@@ -167,11 +151,11 @@ cloudinaryStorage({
         .replace(/[^a-z0-9]/g, '-')
         .replace(/-+/g, '-')
         .replace(/^-|-$/g, '');
-      
+
       // Add timestamp for uniqueness
       const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
       const prefixPath = prefix ? `${prefix}/` : '';
-      
+
       return `${folder}/${prefixPath}${sanitizedName}_${timestamp}`;
     },
   },
@@ -217,35 +201,35 @@ const PDFViewer = ({ media }) => {
   if (!media?.cloudinary || media.cloudinary.format !== 'pdf') {
     return null;
   }
-  
+
   const { public_id, pages, selected_page } = media.cloudinary;
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
   const page = selected_page || 1;
-  
+
   return (
     <div className="pdf-viewer">
       <h2>{media.filename}</h2>
-      
+
       {/* Display the selected page as a thumbnail */}
       <a href={`https://res.cloudinary.com/${cloudName}/image/upload/${public_id}.pdf`} target="_blank">
-        <img 
-          src={`https://res.cloudinary.com/${cloudName}/image/upload/pg_${page},w_300,h_400,c_fill,q_auto,f_jpg/${public_id}.pdf`} 
-          alt={`PDF Page ${page}`} 
+        <img
+          src={`https://res.cloudinary.com/${cloudName}/image/upload/pg_${page},w_300,h_400,c_fill,q_auto,f_jpg/${public_id}.pdf`}
+          alt={`PDF Page ${page}`}
         />
       </a>
-      
+
       {/* Page navigation if there are multiple pages */}
       {pages > 1 && (
         <div className="pdf-pages">
           <p>Page {page} of {pages}</p>
-          
+
           {/* Thumbnail grid of all pages */}
           <div className="page-thumbnails">
             {Array.from({ length: pages }).map((_, i) => (
-              <img 
+              <img
                 key={i}
-                src={`https://res.cloudinary.com/${cloudName}/image/upload/pg_${i + 1},w_100,h_130,c_fill,q_auto,f_jpg/${public_id}.pdf`} 
-                alt={`Page ${i + 1}`} 
+                src={`https://res.cloudinary.com/${cloudName}/image/upload/pg_${i + 1},w_100,h_130,c_fill,q_auto,f_jpg/${public_id}.pdf`}
+                alt={`Page ${i + 1}`}
                 className={i + 1 === page ? 'active' : ''}
               />
             ))}
@@ -467,7 +451,7 @@ export default buildConfig({
   // ... your config
   onInit: async (payload) => {
     // Log the complete Media collection configuration
-    console.log('Media collection fields:', 
+    console.log('Media collection fields:',
       payload.collections['media'].config.fields.map(f => f.name)
     );
   }
@@ -481,10 +465,10 @@ Here's an example React component that uses the Cloudinary public ID for transfo
 ```jsx
 const CloudinaryImage = ({ media }) => {
   if (!media?.cloudinary) return null;
-  
+
   const { public_id, format } = media.cloudinary;
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  
+
   // You can use Cloudinary transformations in the URL
   return (
     <picture>
