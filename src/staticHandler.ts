@@ -31,6 +31,7 @@ export const getHandler =
 
       // Generate the public_id - keep the extension for better identification
       // This is different from the upload behavior which removes extensions
+      let initialPublicId = filePath;
       let publicId = filePath;
       if (publicID?.enabled) {
         publicId = generatePublicID(filename, folder, publicID);
@@ -38,9 +39,21 @@ export const getHandler =
 
       try {
         // First, try to get the resource with the extension included
-        const result = await cloudinary.api.resource(publicId, {
-          resource_type: resourceType,
-        });
+        const [initialResult, finalResult] = await Promise.allSettled([
+          cloudinary.api.resource(initialPublicId, {
+            resource_type: resourceType,
+          }),
+          cloudinary.api.resource(publicId, {
+            resource_type: resourceType,
+          }),
+        ]);
+
+        let result;
+        if (initialResult.status === "fulfilled" && initialResult.value) {
+          result = initialResult.value;
+        } else if (finalResult.status === "fulfilled" && finalResult.value) {
+          result = finalResult.value;
+        }
 
         if (result && result.secure_url) {
           let url = result.secure_url;
