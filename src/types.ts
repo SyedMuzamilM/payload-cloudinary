@@ -1,12 +1,21 @@
 import type { Adapter, CollectionOptions, GenerateURL } from '@payloadcms/plugin-cloud-storage/types'
 import type { Plugin, UploadCollectionSlug, Field } from 'payload'
+import type { Logger } from './errors'
 
 // Define a simplified PayloadDocument type for use with thumbnails
 export interface PayloadDocument {
   id?: string;
   filename?: string;
   cloudinary?: CloudinaryMetadata;
-  sizes?: Record<string, { url: string; width: number; height: number; }>;
+  versions?: CloudinaryVersionInfo[];
+  sizes?: Record<string, { 
+    url: string; 
+    width: number; 
+    height: number; 
+    filename?: string;
+    filesize?: number;
+    mimeType?: string;
+  }>;
   [key: string]: any;
 }
 
@@ -151,26 +160,141 @@ export type CloudinaryStorageOptions = {
    * @default true
    */
   enablePDFThumbnails?: boolean
+
+  /**
+   * Custom logger instance for the plugin
+   * @default defaultLogger (console-based)
+   */
+  logger?: Logger
+
+  /**
+   * File validation options
+   */
+  fileValidation?: FileValidationOptions
+}
+
+export interface FileValidationOptions {
+  /**
+   * Maximum file size in bytes
+   * @default 100MB (100 * 1024 * 1024)
+   */
+  maxSize?: number;
+
+  /**
+   * Additional allowed file extensions (without the dot)
+   * @example ['.pdf', '.docx', '.csv']
+   */
+  allowedExtensions?: string[];
+
+  /**
+   * Blocked file extensions for security
+   * @default ['.exe', '.scr', '.bat', '.com', '.pif', '.vbs', '.js', '.jar', '.php']
+   */
+  blockedExtensions?: string[];
+
+  /**
+   * Custom file validation function
+   * @param file The file to validate
+   * @returns void if valid, throws error if invalid
+   */
+  customValidator?: (file: { filename: string; buffer: Buffer }) => void;
+}
+
+export interface UploadFileInput {
+  filename: string;
+  buffer: Buffer;
+  mimeType?: string;
+}
+
+export interface UploadDataInput {
+  prefix?: string;
+  [key: string]: any;
+}
+
+export interface UploadResult extends UploadDataInput {
+  cloudinary: CloudinaryMetadata;
+  versions?: CloudinaryVersionInfo[];
+}
+
+/**
+ * Strict configuration type with required fields
+ */
+export interface CloudinaryConfigStrict {
+  cloud_name: string;
+  api_key: string;
+  api_secret: string;
+}
+
+/**
+ * Runtime configuration validation result
+ */
+export interface ConfigValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
 }
 
 export type CloudinaryStoragePlugin = (cloudinaryArgs: CloudinaryStorageOptions) => Plugin
 
-export type CloudinaryMetadata = {
-  public_id: string
-  resource_type: string
-  format: string
-  secure_url: string
-  bytes: number
-  created_at: string
-  duration?: number
-  width?: number
-  height?: number
-  eager?: any[]
-  version?: string
-  version_id?: string
-  pages?: number
-  selected_page?: number
-  thumbnail_url?: string
+export type CloudinaryResourceType = 'image' | 'video' | 'raw' | 'auto';
+
+export interface CloudinaryUploadResult {
+  public_id: string;
+  resource_type: CloudinaryResourceType;
+  format: string;
+  secure_url: string;
+  bytes: number;
+  created_at: string;
+  version?: number;
+  version_id?: string;
+  width?: number;
+  height?: number;
+  pages?: number;
+  duration?: number;
+  eager?: Array<{
+    transformation: string;
+    width?: number;
+    height?: number;
+    bytes?: number;
+    format: string;
+    url: string;
+    secure_url: string;
+  }>;
+}
+
+export interface CloudinaryMetadata {
+  public_id: string;
+  resource_type: CloudinaryResourceType;
+  format: string;
+  secure_url: string;
+  bytes: number;
+  created_at: string;
+  version?: string;
+  version_id?: string;
+  // Image/Video specific
+  width?: number;
+  height?: number;
+  duration?: number;
+  eager?: Array<{
+    transformation: string;
+    width?: number;
+    height?: number;
+    bytes?: number;
+    format: string;
+    url: string;
+    secure_url: string;
+  }>;
+  // PDF specific
+  pages?: number;
+  selected_page?: number;
+  thumbnail_url?: string;
+}
+
+export interface CloudinaryVersionInfo {
+  version: string;
+  version_id: string;
+  created_at: string;
+  secure_url: string;
 }
 
 export type CloudinaryAdapter = Adapter

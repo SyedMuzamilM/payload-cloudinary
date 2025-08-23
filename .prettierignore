@@ -1,0 +1,9 @@
+dist/
+node_modules/
+coverage/
+*.d.ts
+*.js.map
+*.min.js
+bun.lockb
+CHANGELOG.md
+LICENSE
