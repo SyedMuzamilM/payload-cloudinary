@@ -7,6 +7,8 @@ import type { CloudinaryVersioningOptions, PublicIDOptions } from "./types";
 import path from "path";
 import stream from "stream";
 import { getResourceType } from "./utils";
+import { validateFile, validatePublicId, sanitizeString } from "./validation";
+import { CloudinaryUploadError, CloudinaryAPIError, defaultLogger, handleError, type Logger } from "./errors";
 
 interface Args {
   cloudinary: typeof cloudinaryType;
@@ -15,6 +17,7 @@ interface Args {
   prefix?: string;
   versioning?: CloudinaryVersioningOptions;
   publicID?: PublicIDOptions;
+  logger?: Logger;
 }
 
 const getUploadOptions = (
@@ -73,13 +76,10 @@ const getUploadOptions = (
  * Sanitize a string to be used as part of a public ID
  * @param str String to sanitize
  * @returns Sanitized string
+ * @deprecated Use sanitizeString from validation.ts instead
  */
 const sanitizeForPublicID = (str: string): string => {
-  return str
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "-") // Replace any character that's not a letter or number with a hyphen
-    .replace(/-+/g, "-") // Replace consecutive hyphens with a single hyphen
-    .replace(/^-|-$/g, ""); // Remove leading or trailing hyphens
+  return sanitizeString(str);
 };
 
 /**
@@ -142,21 +142,35 @@ const isPDF = (filename: string): boolean => {
 const getPDFPageCount = async (
   cloudinary: typeof cloudinaryType,
   publicId: string,
+  resultPages?: number,
+  logger: Logger = defaultLogger,
   defaultCount = 1,
 ): Promise<number> => {
+  // Use result.pages if available to avoid API call
+  if (resultPages && resultPages > 0) {
+    logger.debug('Using PDF page count from upload result', { publicId, pages: resultPages });
+    return resultPages;
+  }
+
   try {
+    logger.debug('Fetching PDF page count from Cloudinary API', { publicId });
     const pdfInfo = await cloudinary.api.resource(publicId, {
       resource_type: "raw",
       pages: true,
     });
 
     if (pdfInfo && pdfInfo.pages) {
+      logger.debug('Successfully retrieved PDF page count', { publicId, pages: pdfInfo.pages });
       return pdfInfo.pages;
     }
   } catch (error) {
-    console.error("Error getting PDF page count:", error);
+    logger.warn("Could not get PDF page count from Cloudinary", {
+      publicId,
+      error: error instanceof Error ? error.message : String(error)
+    });
   }
 
+  logger.debug('Using default PDF page count', { publicId, defaultCount });
   return defaultCount;
 };
 
@@ -167,52 +181,93 @@ export const getHandleUpload =
     prefix = "",
     versioning,
     publicID,
+    logger = defaultLogger,
   }: Args): HandleUpload =>
   async ({ data, file }) => {
+    try {
+      // Validate file before processing
+      validateFile(file, {
+        maxSize: 100 * 1024 * 1024, // 100MB - can be made configurable
+        allowedExtensions: undefined // Use default extensions
+      });
+
+      logger.debug('Starting file upload process', {
+        filename: file.filename,
+        size: file.buffer.length,
+        collection: 'media' // We could get this from context if needed
+      });
     // Construct the folder path with proper handling of prefix
     const folderPath = data.prefix
       ? path.posix.join(folder, data.prefix)
       : path.posix.join(folder, prefix);
 
-    // Generate the public ID based on options
-    const publicIdValue = generatePublicID(file.filename, folderPath, publicID);
+      // Generate the public ID based on options
+      const publicIdValue = generatePublicID(file.filename, folderPath, publicID);
+      
+      // Validate the generated public ID
+      validatePublicId(publicIdValue);
 
-    // Basic upload options
-    const uploadOptions: UploadApiOptions = {
-      ...getUploadOptions(file.filename, versioning),
-      public_id: publicIdValue,
-      // folder: path.dirname(publicIdValue), // Extract folder from public_id
-      use_filename: publicID?.useFilename !== false,
-      unique_filename: publicID?.uniqueFilename !== false,
-      asset_folder: folderPath,
-    };
+      logger.debug('Generated public ID for upload', {
+        filename: file.filename,
+        publicId: publicIdValue,
+        folderPath
+      });
 
-    return new Promise((resolve, reject) => {
-      try {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          uploadOptions,
-          async (error, result) => {
-            if (error) {
-              console.error("Error uploading to Cloudinary:", error);
-              reject(error);
-              return;
-            }
+      // Basic upload options
+      const uploadOptions: UploadApiOptions = {
+        ...getUploadOptions(file.filename, versioning),
+        public_id: publicIdValue,
+        // folder: path.dirname(publicIdValue), // Extract folder from public_id
+        use_filename: publicID?.useFilename !== false,
+        unique_filename: publicID?.uniqueFilename !== false,
+        asset_folder: folderPath,
+      };
 
-            if (result) {
-              const isPDFFile = isPDF(file.filename);
-              const baseMetadata = {
-                public_id: result.public_id,
-                resource_type: result.resource_type,
-                format: result.format,
-                secure_url: result.secure_url,
-                bytes: result.bytes,
-                created_at: result.created_at,
-                // Ensure version is always stored as string to match field type
-                version: result.version
-                  ? String(result.version)
-                  : result.version,
-                version_id: result.version_id,
-              };
+      return new Promise((resolve, reject) => {
+        try {
+          logger.debug('Starting Cloudinary upload', { uploadOptions });
+          
+          const uploadStream = cloudinary.uploader.upload_stream(
+            uploadOptions,
+            async (error, result) => {
+              if (error) {
+                const uploadError = new CloudinaryUploadError(
+                  `Failed to upload file to Cloudinary: ${error.message}`,
+                  error,
+                  file.filename
+                );
+                logger.error("Error uploading to Cloudinary", {
+                  filename: file.filename,
+                  publicId: publicIdValue,
+                  error: uploadError.toLogObject()
+                });
+                reject(uploadError);
+                return;
+              }
+
+              if (result) {
+                logger.info('File uploaded to Cloudinary successfully', {
+                  filename: file.filename,
+                  publicId: result.public_id,
+                  resourceType: result.resource_type,
+                  format: result.format,
+                  bytes: result.bytes
+                });
+
+                const isPDFFile = isPDF(file.filename);
+                const baseMetadata = {
+                  public_id: result.public_id,
+                  resource_type: result.resource_type,
+                  format: result.format,
+                  secure_url: result.secure_url,
+                  bytes: result.bytes,
+                  created_at: result.created_at,
+                  // Ensure version is always stored as string to match field type
+                  version: result.version
+                    ? String(result.version)
+                    : result.version,
+                  version_id: result.version_id,
+                };
 
               // Add metadata based on resource type
               let typeSpecificMetadata = {};
@@ -229,20 +284,17 @@ export const getHandleUpload =
                   width: result.width,
                   height: result.height,
                 };
-              } else if (isPDFFile) {
-                // Handle PDF specific metadata
-                let pageCount = 1;
+                } else if (isPDFFile) {
+                  // Handle PDF specific metadata
+                  let pageCount = 1;
 
-                // Try to get page count from result, otherwise call the API
-                if (result.pages) {
-                  pageCount = result.pages;
-                } else {
-                  // Use the separate async function to get page count
+                  // Use the optimized function that tries result.pages first
                   pageCount = await getPDFPageCount(
                     cloudinary,
                     result.public_id,
+                    result.pages,
+                    logger
                   );
-                }
 
                 typeSpecificMetadata = {
                   pages: pageCount,
@@ -275,16 +327,23 @@ export const getHandleUpload =
           },
         );
 
-        // Create readable stream from buffer or file
-        const readableStream = new stream.Readable();
-        readableStream.push(file.buffer);
-        readableStream.push(null);
-
-        // Pipe the readable stream to the upload stream
-        readableStream.pipe(uploadStream);
-      } catch (error) {
-        console.error("Error in upload process:", error);
-        reject(error);
-      }
-    });
+          // Use buffer directly instead of creating unnecessary stream
+          uploadStream.end(file.buffer);
+        } catch (error) {
+          const uploadError = new CloudinaryUploadError(
+            `Error in upload process: ${error instanceof Error ? error.message : String(error)}`,
+            error instanceof Error ? error : undefined,
+            file.filename
+          );
+          logger.error("Error in upload process", {
+            filename: file.filename,
+            error: uploadError.toLogObject()
+          });
+          reject(uploadError);
+        }
+      });
+    } catch (error) {
+      // Handle validation and other errors
+      throw handleError(error, logger, 'handleUpload');
+    }
   };

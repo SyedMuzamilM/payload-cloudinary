@@ -15,6 +15,11 @@ A powerful plugin for [Payload CMS](https://payloadcms.com/) that integrates Clo
 - 🎛️ Static file handling
 - 💾 Optional local storage disable
 - 📄 PDF support with thumbnail generation
+- 🔒 **NEW:** Comprehensive input validation and security checks
+- 🛡️ **NEW:** Advanced error handling with detailed logging
+- ⚡ **NEW:** Performance optimizations and reduced API calls
+- 🧪 **NEW:** Full test coverage with Jest
+- 📚 **NEW:** Comprehensive documentation and troubleshooting guides
 
 ## Installation
 
@@ -27,6 +32,12 @@ pnpm add payload-cloudinary
 # or
 bun add payload-cloudinary
 ```
+
+## Documentation
+
+- 📖 [API Reference](./docs/API.md) - Complete API documentation
+- 🔧 [Troubleshooting Guide](./docs/TROUBLESHOOTING.md) - Common issues and solutions
+- 🧪 [Testing Guide](./src/__tests__/README.md) - How to run and write tests
 
 ## Basic Configuration
 

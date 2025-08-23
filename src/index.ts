@@ -18,6 +18,8 @@ import { generateMediaCollection } from './collections/Media'
 import { generateCustomFields } from './collections/Media/fields/customFields'
 import { cloudinaryFields } from './collections/Media/fields/cloudinary'
 import { versionFields } from './collections/Media/fields/versions'
+import { validateCloudinaryConfig, validateFolderPath } from './validation'
+import { CloudinaryError, defaultLogger, handleError, type Logger } from './errors'
 import type { 
   CloudinaryStorageOptions, 
   CloudinaryStoragePlugin, 
@@ -49,7 +51,15 @@ export const cloudinaryStorage: CloudinaryStoragePlugin =
       return incomingConfig
     }
 
-    const adapter = cloudinaryStorageInternal(cloudinaryOptions)
+    try {
+      // Validate configuration before proceeding
+      validateCloudinaryConfig(cloudinaryOptions.config)
+      
+      if (cloudinaryOptions.folder) {
+        validateFolderPath(cloudinaryOptions.folder)
+      }
+
+      const adapter = cloudinaryStorageInternal(cloudinaryOptions)
 
     // Add adapter to each collection option object
     const collectionsWithAdapter: CloudStoragePluginOptions['collections'] = Object.entries(
@@ -139,9 +149,13 @@ export const cloudinaryStorage: CloudinaryStoragePlugin =
       }),
     };
 
-    return cloudStoragePlugin({
-      collections: collectionsWithAdapter,
-    })(config)
+      return cloudStoragePlugin({
+        collections: collectionsWithAdapter,
+      })(config)
+    } catch (error) {
+      const cloudinaryError = handleError(error, defaultLogger, 'cloudinaryStorage')
+      throw cloudinaryError
+    }
   }
 
 function cloudinaryStorageInternal({
@@ -153,28 +167,48 @@ function cloudinaryStorageInternal({
     storeHistory: false,
   },
   publicID,
+  logger = defaultLogger,
 }: CloudinaryStorageOptions): Adapter {
   return ({ collection, prefix }): GeneratedAdapter => {
-    // Configure cloudinary
-    cloudinary.config({
-      cloud_name: config.cloud_name,
-      api_key: config.api_key,
-      api_secret: config.api_secret,
-    })
+    try {
+      // Validate configuration again at runtime
+      validateCloudinaryConfig(config)
+      validateFolderPath(folder)
 
-    return {
-      name: 'cloudinary',
-      generateURL: getGenerateURL({ config, folder, versioning }),
-      handleDelete: getHandleDelete({ cloudinary, folder }),
-      handleUpload: getHandleUpload({
-        cloudinary,
-        collection,
+      // Configure cloudinary with validated config
+      cloudinary.config({
+        cloud_name: config.cloud_name,
+        api_key: config.api_key,
+        api_secret: config.api_secret,
+        // Add secure option
+        secure: true,
+      })
+
+      logger.info('Cloudinary adapter initialized successfully', {
+        cloud_name: config.cloud_name,
         folder,
-        prefix,
-        versioning,
-        publicID,
-      }),
-      staticHandler: getHandler({ cloudinary, collection, folder }),   
+        collection: collection.slug,
+        versioning: versioning.enabled
+      })
+
+      return {
+        name: 'cloudinary',
+        generateURL: getGenerateURL({ config, folder, versioning, logger }),
+        handleDelete: getHandleDelete({ cloudinary, folder, logger }),
+        handleUpload: getHandleUpload({
+          cloudinary,
+          collection,
+          folder,
+          prefix,
+          versioning,
+          publicID,
+          logger,
+        }),
+        staticHandler: getHandler({ cloudinary, collection, folder, logger }),   
+      }
+    } catch (error) {
+      const cloudinaryError = handleError(error, logger, 'cloudinaryStorageInternal')
+      throw cloudinaryError
     }
   }
 }
