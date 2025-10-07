@@ -171,6 +171,7 @@ export type CloudinaryMetadata = {
   pages?: number
   selected_page?: number
   thumbnail_url?: string
+  type?: string
 }
 
 export type CloudinaryAdapter = Adapter

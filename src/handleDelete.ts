@@ -1,7 +1,14 @@
 import type { HandleDelete } from '@payloadcms/plugin-cloud-storage/types'
 import type { v2 as cloudinaryType } from 'cloudinary'
 
+import type { CloudinaryMetadata } from './types'
+
 import path from 'path'
+
+type HandleDeleteArgs = Parameters<HandleDelete>[0]
+type DocWithCloudinaryMetadata = HandleDeleteArgs['doc'] & {
+  cloudinary?: CloudinaryMetadata
+}
 
 interface Args {
   cloudinary: typeof cloudinaryType
@@ -12,6 +19,7 @@ export const getHandleDelete =
   ({ cloudinary, folder }: Args): HandleDelete =>
   async ({ filename, doc }) => {
     const filePath = path.posix.join(folder, filename)
+    const docWithCloudinary = doc as DocWithCloudinaryMetadata
 
     try {
       // Extract public_id without file extension
@@ -21,11 +29,11 @@ export const getHandleDelete =
       let resourceType: string = 'image'
       let deliveryType: string = 'upload'
       
-      if (doc?.cloudinary) {
+      if (docWithCloudinary.cloudinary) {
         // Use stored Cloudinary metadata if available
-        publicId = doc.cloudinary.public_id || publicId
-        resourceType = doc.cloudinary.resource_type || resourceType
-        deliveryType = doc.cloudinary.type || deliveryType
+        publicId = docWithCloudinary.cloudinary.public_id || publicId
+        resourceType = docWithCloudinary.cloudinary.resource_type || resourceType
+        deliveryType = docWithCloudinary.cloudinary.type || deliveryType
       }
 
       // Attempt deletion with proper parameters
