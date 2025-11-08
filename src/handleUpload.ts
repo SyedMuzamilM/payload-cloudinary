@@ -103,11 +103,20 @@ const generatePublicID = (
     );
   }
 
-  // If publicID is disabled, just return the path without extension but with sanitization
+  // Get file extension and resource type
+  const ext = path.extname(filename).toLowerCase();
+  const resourceType = getResourceType(ext);
+  const isRawFile = resourceType === "raw";
+
+  // If publicID is disabled, just return the path with sanitization
   if (publicIDOptions?.enabled === false) {
     const filenameWithoutExt = path.basename(filename, path.extname(filename));
     const sanitizedFilename = sanitizeForPublicID(filenameWithoutExt);
-    return path.posix.join(folderPath, sanitizedFilename);
+    // For raw files, preserve the extension
+    const finalFilename = isRawFile
+      ? `${sanitizedFilename}${ext}`
+      : sanitizedFilename;
+    return path.posix.join(folderPath, finalFilename);
   }
 
   // Default behavior - use filename (if enabled) and make it unique (if enabled)
@@ -120,11 +129,19 @@ const generatePublicID = (
     // Use the filename as part of the public ID (sanitized)
     const filenameWithoutExt = path.basename(filename, path.extname(filename));
     const sanitizedFilename = sanitizeForPublicID(filenameWithoutExt);
-    return path.posix.join(folderPath, `${sanitizedFilename}${timestamp}`);
+    // For raw files, preserve the extension
+    const finalFilename = isRawFile
+      ? `${sanitizedFilename}${timestamp}${ext}`
+      : `${sanitizedFilename}${timestamp}`;
+    return path.posix.join(folderPath, finalFilename);
   }
 
   // Generate a timestamp-based ID if not using filename
-  return path.posix.join(folderPath, `media${timestamp}`);
+  // For raw files, we need to preserve the extension even with generated IDs
+  const finalFilename = isRawFile
+    ? `media${timestamp}${ext}`
+    : `media${timestamp}`;
+  return path.posix.join(folderPath, finalFilename);
 };
 
 /**
