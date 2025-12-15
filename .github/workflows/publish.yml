@@ -72,6 +72,15 @@ jobs:
 
           echo "::notice::Bumping version to $NEW_VERSION"
 
+      - name: Generate Changelog
+        id: changelog
+        uses: TriPSs/conventional-changelog-action@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          output-file: "CHANGELOG.md"
+          skip-version-file: "true"
+          fallback-version: ${{ steps.version.outputs.new_version }}
+
       - name: Publish to NPM
         run: |
           VERSION_TYPE="${{ github.event.inputs.version_type }}"
@@ -94,7 +103,7 @@ jobs:
         run: |
           VERSION=${{ steps.version.outputs.new_version }}
 
-          git add package.json bun.lockb
+          git add package.json bun.lockb CHANGELOG.md
           git commit -m "chore(release): v$VERSION"
 
           # Create and push tag
