@@ -18,7 +18,10 @@ export const beforeRead: CollectionBeforeReadHook = async ({
   try {
     // Check if we have Cloudinary metadata
     if (!doc?.cloudinary) {
-      console.warn("Payload Cloudinary: No Cloudinary metadata found for document:", doc.id);
+      console.warn(
+        "Payload Cloudinary: No Cloudinary metadata found for document:",
+        doc.id,
+      );
       return doc;
     }
 
@@ -43,7 +46,10 @@ export const beforeRead: CollectionBeforeReadHook = async ({
     }
 
     // Construct the full URL
-    doc.url = `${serverURL}/${collection.slug}/file/${public_id}.${format}`;
+    const filename = public_id.toLowerCase().endsWith(`.${format}`)
+      ? public_id
+      : `${public_id}.${format}`;
+    doc.url = `${serverURL}/${collection.slug}/file/${filename}`;
 
     return doc;
   } catch (error) {

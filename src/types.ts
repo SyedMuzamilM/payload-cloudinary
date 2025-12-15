@@ -1,12 +1,16 @@
-import type { Adapter, CollectionOptions, GenerateURL } from '@payloadcms/plugin-cloud-storage/types'
-import type { Plugin, UploadCollectionSlug, Field } from 'payload'
+import type {
+  Adapter,
+  CollectionOptions,
+  GenerateURL,
+} from "@payloadcms/plugin-cloud-storage/types";
+import type { Plugin, UploadCollectionSlug, Field } from "payload";
 
 // Define a simplified PayloadDocument type for use with thumbnails
 export interface PayloadDocument {
   id?: string;
   filename?: string;
   cloudinary?: CloudinaryMetadata;
-  sizes?: Record<string, { url: string; width: number; height: number; }>;
+  sizes?: Record<string, { url: string; width: number; height: number }>;
   [key: string]: any;
 }
 
@@ -15,18 +19,20 @@ export type GenerateURLParams = Parameters<GenerateURL>[0] & {
   version?: string | number;
   pdf_page?: number; // Page number for PDF thumbnails
   format?: string; // Target format for conversion
-}
+};
 
 export type CloudinaryURLResponse = {
   url: string;
   public_id: string;
-}
+};
 
 // Extend the original GenerateURL type
-export type CloudinaryGenerateURL = (args: GenerateURLParams) => CloudinaryURLResponse;
+export type CloudinaryGenerateURL = (
+  args: GenerateURLParams,
+) => CloudinaryURLResponse;
 
 // Override the GenerateURL args only
-declare module '@payloadcms/plugin-cloud-storage/types' {
+declare module "@payloadcms/plugin-cloud-storage/types" {
   interface GenerateURLArgs {
     version?: string | number;
     pdf_page?: number; // Page number for PDF thumbnails
@@ -36,30 +42,30 @@ declare module '@payloadcms/plugin-cloud-storage/types' {
 
 // Extend the original GenerateURL type
 export type CloudinaryConfig = {
-  cloud_name: string
-  api_key: string
-  api_secret: string
-}
+  cloud_name: string;
+  api_key: string;
+  api_secret: string;
+};
 
 export type CloudinaryVersioningOptions = {
   /**
    * Whether to enable versioning support
    * @default false
    */
-  enabled?: boolean
+  enabled?: boolean;
 
   /**
    * Whether to automatically invalidate old versions in CDN
    * @default false
    */
-  autoInvalidate?: boolean
+  autoInvalidate?: boolean;
 
   /**
    * Whether to store version history in PayloadCMS
    * @default false
    */
-  storeHistory?: boolean
-}
+  storeHistory?: boolean;
+};
 
 /**
  * Options for customizing Cloudinary public ID generation
@@ -69,19 +75,19 @@ export type PublicIDOptions = {
    * Whether to enable custom public ID generation
    * @default true
    */
-  enabled?: boolean
+  enabled?: boolean;
 
   /**
    * Whether to use the original filename as part of the public ID
    * @default true
    */
-  useFilename?: boolean
+  useFilename?: boolean;
 
   /**
    * Whether to ensure unique filenames by adding a random suffix
    * @default true
    */
-  uniqueFilename?: boolean
+  uniqueFilename?: boolean;
 
   /**
    * Custom function to generate a public ID
@@ -91,87 +97,95 @@ export type PublicIDOptions = {
    * @param folder The base folder
    * @returns A string to use as the public ID
    */
-  generatePublicID?: (filename: string, prefix?: string, folder?: string) => string
-}
+  generatePublicID?: (
+    filename: string,
+    prefix?: string,
+    folder?: string,
+  ) => string;
+};
 
 export type CloudinaryStorageOptions = {
   /**
    * Collection options to apply the Cloudinary adapter to.
    */
-  collections: Partial<Record<UploadCollectionSlug, Omit<CollectionOptions, 'adapter'> | true>>
+  collections: Partial<
+    Record<UploadCollectionSlug, Omit<CollectionOptions, "adapter"> | true>
+  >;
 
   /**
    * Cloudinary configuration
    */
-  config: CloudinaryConfig
+  config: CloudinaryConfig;
 
   /**
    * Folder path in Cloudinary where files will be uploaded
    * @default 'payload-media'
    */
-  folder?: string
+  folder?: string;
 
   /**
    * Whether or not to disable local storage
    * @default true
    */
-  disableLocalStorage?: boolean
+  disableLocalStorage?: boolean;
 
   /**
    * Whether or not to enable the plugin
    * @default true
    */
-  enabled?: boolean
+  enabled?: boolean;
 
   /**
    * Versioning configuration options
    */
-  versioning?: CloudinaryVersioningOptions
+  versioning?: CloudinaryVersioningOptions;
 
   /**
    * Public ID configuration options
    */
-  publicID?: PublicIDOptions
+  publicID?: PublicIDOptions;
 
   /**
    * Support for Dynamic Folder Mode
    * When true, uses asset_folder parameter in upload to ensure correct folder display in Media Library
    * @default true
    */
-  supportDynamicFolderMode?: boolean
+  supportDynamicFolderMode?: boolean;
 
   /**
    * Additional custom fields to add to media collection
    * These will be merged with the default fields (cloudinary, versions, etc.)
    */
-  customFields?: Field[]
+  customFields?: Field[];
 
   /**
    * Enable PDF thumbnails in the admin UI
    * @default true
    */
-  enablePDFThumbnails?: boolean
-}
+  enablePDFThumbnails?: boolean;
+};
 
-export type CloudinaryStoragePlugin = (cloudinaryArgs: CloudinaryStorageOptions) => Plugin
+export type CloudinaryStoragePlugin = (
+  cloudinaryArgs: CloudinaryStorageOptions,
+) => Plugin;
 
 export type CloudinaryMetadata = {
-  public_id: string
-  resource_type: string
-  format: string
-  secure_url: string
-  bytes: number
-  created_at: string
-  duration?: number
-  width?: number
-  height?: number
-  eager?: any[]
-  version?: string
-  version_id?: string
-  pages?: number
-  selected_page?: number
-  thumbnail_url?: string
-  type?: string
-}
+  public_id: string;
+  resource_type: string;
+  format: string;
+  secure_url: string;
+  bytes: number;
+  created_at: string;
+  duration?: number;
+  width?: number;
+  height?: number;
+  eager?: any[];
+  version?: string;
+  version_id?: string;
+  pages?: number;
+  selected_page?: number;
+  thumbnail_url?: string;
+  type?: string;
+};
 
-export type CloudinaryAdapter = Adapter
+export type CloudinaryAdapter = Adapter;

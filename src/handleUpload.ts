@@ -265,7 +265,7 @@ export const getHandleUpload =
                   pages: pageCount,
                   selected_page: 1, // Default to first page for thumbnails
                   // Generate a thumbnail URL for the PDF
-                  thumbnail_url: `https://res.cloudinary.com/${cloudinary.config().cloud_name}/image/upload/pg_1/q_auto,f_jpg/${result.public_id}.jpg`,
+                  thumbnail_url: `https://res.cloudinary.com/${cloudinary.config().cloud_name}/image/upload/pg_1,f_jpg,q_auto/${result.public_id}.pdf`,
                 };
               }
 
