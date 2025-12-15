@@ -1,4 +1,4 @@
-import type { Field } from 'payload';
+import type { Field } from "payload";
 
 /**
  * Default custom fields that can be added to media items
@@ -13,4 +13,4 @@ export const defaultMediaCustomFields: Field[] = [];
  */
 export const generateCustomFields = (customFields?: Field[]): Field[] => {
   return [...defaultMediaCustomFields, ...(customFields || [])];
-}; 
+};

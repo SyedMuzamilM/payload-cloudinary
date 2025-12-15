@@ -1,1 +1,1 @@
-export { beforeRead } from './change-url';
+export { beforeRead } from "./change-url";

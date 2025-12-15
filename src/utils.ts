@@ -1,4 +1,8 @@
-import { IMAGE_EXTENSIONS, RAW_EXTENSIONS, VIDEO_EXTENSIONS } from "./constants";
+import {
+  IMAGE_EXTENSIONS,
+  RAW_EXTENSIONS,
+  VIDEO_EXTENSIONS,
+} from "./constants";
 
 export const getResourceType = (ext: string) => {
   if (VIDEO_EXTENSIONS.includes(ext)) return "video";
@@ -6,4 +10,3 @@ export const getResourceType = (ext: string) => {
   if (RAW_EXTENSIONS.includes(ext)) return "raw";
   return "auto"; // Default to auto for unknown types
 };
-    
