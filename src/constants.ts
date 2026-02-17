@@ -20,8 +20,7 @@ export const IMAGE_EXTENSIONS = [
   ".tiff",
 ];
 export const RAW_EXTENSIONS = [
-  // Documents
-  ".pdf",
+  // Documents (PDFs are handled as images, not raw)
   ".doc",
   ".docx",
   ".xls",
