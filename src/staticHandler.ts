@@ -1,10 +1,20 @@
 import type { StaticHandler } from "@payloadcms/plugin-cloud-storage/types";
-import type { CollectionConfig } from "payload";
+import type { CollectionConfig, PayloadRequest } from "payload";
 import type { v2 as cloudinaryType } from "cloudinary";
 
-import { getFilePrefix } from "@payloadcms/plugin-cloud-storage/utilities";
 import path from "path";
 import { getResourceType } from "./utils";
+
+type CloudinaryMetadata = {
+  format?: string;
+  public_id?: string;
+  resource_type?: string;
+};
+
+type MatchedDoc = {
+  cloudinary?: CloudinaryMetadata;
+  prefix?: string;
+};
 
 interface Args {
   cloudinary: typeof cloudinaryType;
@@ -12,156 +22,181 @@ interface Args {
   folder: string;
 }
 
+const resolveDocByFilename = async ({
+  collection,
+  filename,
+  req,
+}: {
+  collection: CollectionConfig;
+  filename: string;
+  req: PayloadRequest;
+}): Promise<MatchedDoc | undefined> => {
+  const imageSizes =
+    typeof collection.upload === "object"
+      ? collection.upload.imageSizes || []
+      : [];
+
+  const result = await req.payload.find({
+    collection: collection.slug,
+    depth: 0,
+    limit: 1,
+    pagination: false,
+    where: {
+      or: [
+        {
+          filename: {
+            equals: filename,
+          },
+        },
+        ...imageSizes.map((imageSize) => ({
+          [`sizes.${imageSize.name}.filename`]: {
+            equals: filename,
+          },
+        })),
+      ],
+    },
+  });
+
+  return result?.docs?.[0] as MatchedDoc | undefined;
+};
+
+const applyPDFThumbnailTransformation = ({
+  isPDFThumbnail,
+  url,
+}: {
+  isPDFThumbnail: boolean;
+  url: string;
+}): string => {
+  if (!isPDFThumbnail) return url;
+
+  const urlParts = url.split("/upload/");
+  if (urlParts.length !== 2) return url;
+
+  return `${urlParts[0]}/upload/pg_1,f_jpg,q_auto/${urlParts[1]}`;
+};
+
+const createProxyResponse = async ({
+  req,
+  url,
+}: {
+  req: PayloadRequest;
+  url: string;
+}): Promise<Response | null> => {
+  const response = await fetch(url);
+
+  if (!response.ok) return null;
+
+  const blob = await response.blob();
+  const objectEtag = response.headers.get("etag") || "";
+  const etagFromHeaders =
+    req.headers.get("if-none-match") || req.headers.get("etag");
+
+  if (etagFromHeaders && objectEtag && etagFromHeaders === objectEtag) {
+    return new Response(null, {
+      headers: new Headers({
+        "Content-Length": String(blob.size),
+        "Content-Type": blob.type,
+        ETag: objectEtag,
+      }),
+      status: 304,
+    });
+  }
+
+  return new Response(blob, {
+    headers: new Headers({
+      "Content-Length": String(blob.size),
+      "Content-Type": blob.type,
+      ...(objectEtag ? { ETag: objectEtag } : {}),
+    }),
+    status: 200,
+  });
+};
+
 export const getHandler =
   ({ cloudinary, collection, folder }: Args): StaticHandler =>
   async (req, { params: { filename } }) => {
     try {
-      const prefix = await getFilePrefix({ collection, filename, req });
-      const filePath = path.posix.join(folder, prefix, filename);
-
-      // Determine resource type based on file extension
       const fileExt = path.extname(filename).toLowerCase();
-      const resourceType = getResourceType(fileExt);
+      const inferredResourceType = getResourceType(fileExt);
+      const isPDFThumbnail =
+        fileExt === ".pdf" && !!req.url?.includes("thumbnail=true");
 
-      // Check if this is a request for a PDF thumbnail
-      const isPdfThumbnail =
-        fileExt === ".pdf" && req.url?.includes("thumbnail=true");
+      const matchedDoc = await resolveDocByFilename({
+        collection,
+        filename,
+        req,
+      });
 
-      // Generate the public_id - keep the extension for better identification
-      // This is different from the upload behavior which removes extensions
-      const publicId = filePath;
+      const fallbackPath = path.posix.join(
+        folder,
+        matchedDoc?.prefix || "",
+        filename,
+      );
+      const publicIDCandidates = new Set<string>([
+        fallbackPath,
+        fallbackPath.replace(/\.[^/.]+$/, ""),
+      ]);
 
-      try {
-        // First, try to get the resource with the extension included
-        const result = await cloudinary.api.resource(publicId, {
-          resource_type: resourceType,
-        });
+      const docPublicID = matchedDoc?.cloudinary?.public_id;
+      if (docPublicID) {
+        publicIDCandidates.add(docPublicID);
 
-        if (result && result.secure_url) {
-          let url = result.secure_url;
-
-          // If this is a PDF thumbnail request, add Cloudinary transformation
-          if (isPdfThumbnail) {
-            // Extract the base URL and add transformation for first page of PDF
-            const urlParts = url.split("/upload/");
-            if (urlParts.length === 2) {
-              // Add transformation to extract first page as image
-              url = urlParts[0] + "/upload/pg_1,f_jpg,q_auto/" + urlParts[1];
-            }
-          }
-
-          const response = await fetch(url);
-
-          if (!response.ok) {
-            return new Response(null, { status: 404, statusText: "Not Found" });
-          }
-
-          const blob = await response.blob();
-
-          const etagFromHeaders =
-            req.headers.get("etag") || req.headers.get("if-none-match");
-          const objectEtag = req.headers.get("etag") as string;
-
-          if (etagFromHeaders && etagFromHeaders === objectEtag) {
-            return new Response(null, {
-              headers: new Headers({
-                "Content-Type": blob.type,
-                "Content-Length": String(blob.size),
-                ETag: objectEtag,
-              }),
-              status: 304,
-            });
-          }
-
-          // Return the blob with appropriate headers
-          return new Response(blob, {
-            headers: new Headers({
-              "Content-Type": blob.type,
-              "Content-Length": String(blob.size),
-              ETag: objectEtag,
-            }),
-            status: 200,
-          });
+        if (fileExt && !docPublicID.toLowerCase().endsWith(fileExt)) {
+          publicIDCandidates.add(`${docPublicID}${fileExt}`);
         }
-      } catch (resourceError) {
-        // If the first attempt fails, try without the extension
-        try {
-          const publicIdWithoutExt = filePath.replace(/\.[^/.]+$/, "");
 
-          const fallbackResult = await cloudinary.api.resource(
-            publicIdWithoutExt,
-            {
-              resource_type: resourceType,
-            },
-          );
-
-          if (fallbackResult && fallbackResult.secure_url) {
-            let url = fallbackResult.secure_url;
-
-            // If this is a PDF thumbnail request, add Cloudinary transformation
-            if (isPdfThumbnail) {
-              // Extract the base URL and add transformation for first page of PDF
-              const urlParts = url.split("/upload/");
-              if (urlParts.length === 2) {
-                // Add transformation to extract first page as image
-                url = urlParts[0] + "/upload/pg_1,f_jpg,q_auto/" + urlParts[1];
-              }
-            }
-
-            const response = await fetch(url);
-
-            if (!response.ok) {
-              return new Response(null, {
-                status: 404,
-                statusText: "Not Found",
-              });
-            }
-
-            const blob = await response.blob();
-
-            const etagFromHeaders =
-              req.headers.get("etag") || req.headers.get("if-none-match");
-            const objectEtag = req.headers.get("etag") as string;
-
-            if (etagFromHeaders && etagFromHeaders === objectEtag) {
-              return new Response(null, {
-                headers: new Headers({
-                  "Content-Type": blob.type,
-                  "Content-Length": String(blob.size),
-                  ETag: objectEtag,
-                }),
-                status: 304,
-              });
-            }
-
-            // Return the blob with appropriate headers
-            return new Response(blob, {
-              headers: new Headers({
-                "Content-Type": blob.type,
-                "Content-Length": String(blob.size),
-                ETag: objectEtag,
-              }),
-              status: 200,
-            });
-          }
-        } catch (fallbackError) {
-          // If both attempts fail, return 404
-          req.payload.logger.error({
-            error: fallbackError,
-            message: "Resource not found in Cloudinary",
-            path: filePath,
-          });
-          return new Response(null, { status: 404, statusText: "Not Found" });
+        if (fileExt && docPublicID.toLowerCase().endsWith(fileExt)) {
+          publicIDCandidates.add(docPublicID.slice(0, -fileExt.length));
         }
       }
 
-      // If we get here, the resource wasn't found
+      const resourceTypeCandidates = Array.from(
+        new Set<string>([
+          matchedDoc?.cloudinary?.resource_type || "",
+          inferredResourceType,
+        ]).values(),
+      ).filter(Boolean);
+
+      for (const publicID of publicIDCandidates) {
+        for (const resourceType of resourceTypeCandidates) {
+          try {
+            const result = await cloudinary.api.resource(publicID, {
+              resource_type: resourceType,
+            });
+
+            if (!result?.secure_url) continue;
+
+            const transformedURL = applyPDFThumbnailTransformation({
+              isPDFThumbnail,
+              url: result.secure_url,
+            });
+
+            const proxiedResponse = await createProxyResponse({
+              req,
+              url: transformedURL,
+            });
+
+            if (proxiedResponse) {
+              return proxiedResponse;
+            }
+          } catch {
+            // Try next candidate.
+          }
+        }
+      }
+
+      req.payload.logger.error({
+        filename,
+        message: "Resource not found in Cloudinary",
+        triedPublicIDs: Array.from(publicIDCandidates),
+      });
+
       return new Response(null, { status: 404, statusText: "Not Found" });
     } catch (error) {
       req.payload.logger.error({
         error,
-        message: "Error in statichandler",
         filename,
+        message: "Error in statichandler",
       });
       return new Response("Internal Server Error", { status: 500 });
     }

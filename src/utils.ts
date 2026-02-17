@@ -5,6 +5,8 @@ import {
 } from "./constants";
 
 export const getResourceType = (ext: string) => {
+  // PDFs should be treated as images, not raw files
+  if (ext === ".pdf") return "image";
   if (VIDEO_EXTENSIONS.includes(ext)) return "video";
   if (IMAGE_EXTENSIONS.includes(ext)) return "image";
   if (RAW_EXTENSIONS.includes(ext)) return "raw";
