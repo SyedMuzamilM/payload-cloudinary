@@ -16,6 +16,7 @@ interface Args {
 }
 
 const getResourceType = (ext: string): string => {
+  if (ext === ".pdf") return "image";
   if (VIDEO_EXTENSIONS.includes(ext)) return "video";
   if (IMAGE_EXTENSIONS.includes(ext)) return "image";
   if (RAW_EXTENSIONS.includes(ext)) return "raw";
@@ -36,20 +37,23 @@ export const getGenerateURL = ({
   versioning,
 }: Args): GenerateURL => {
   const generateURL: CloudinaryGenerateURL = (params: GenerateURLParams) => {
-    const { filename, prefix = "", version, pdf_page } = params;
+    const { data, filename, prefix = "", version, pdf_page } = params;
+    const cloudinaryMeta = data?.cloudinary;
     // Construct the folder path with proper handling of prefix
     const folderPath = prefix ? path.posix.join(folder, prefix) : folder;
     const filePath = path.posix.join(folderPath, filename);
-    const public_id = filePath.replace(/\.[^/.]+$/, ""); // Remove file extension
+    const fallbackPublicID = filePath.replace(/\.[^/.]+$/, ""); // Remove file extension
+    const public_id = cloudinaryMeta?.public_id || fallbackPublicID;
     const ext = path.extname(filename).toLowerCase();
-    const resourceType = getResourceType(ext);
+    const format = cloudinaryMeta?.format || ext.slice(1);
+    const resourceType = cloudinaryMeta?.resource_type || getResourceType(ext);
     const baseUrl = `https://res.cloudinary.com/${config.cloud_name}`;
 
     // Add version to URL if versioning is enabled and version is provided
     const versionSegment = versioning?.enabled && version ? `/v${version}` : "";
 
     // Check if this is a PDF and we're requesting it as an image
-    const isPDFFile = isPDF(filename);
+    const isPDFFile = format === "pdf" || isPDF(filename);
 
     let url: string;
 
@@ -57,21 +61,33 @@ export const getGenerateURL = ({
     if (isPDFFile && params.format === "jpg") {
       // Use the page parameter if provided, or default to page 1
       const pageNumber = pdf_page || 1;
-      url = `${baseUrl}/image/upload${versionSegment}/pg_${pageNumber},f_jpg,q_auto/${public_id}.pdf`;
+      const pdfPublicID = public_id.endsWith(".pdf")
+        ? public_id
+        : `${public_id}.pdf`;
+      url = `${baseUrl}/image/upload${versionSegment}/pg_${pageNumber},f_jpg,q_auto/${pdfPublicID}`;
     } else {
       switch (resourceType) {
         case "video":
-          url = `${baseUrl}/video/upload${versionSegment}/f_auto,q_auto/${filePath}`;
+          url = `${baseUrl}/video/upload${versionSegment}/f_auto,q_auto/${public_id}`;
           break;
         case "image":
-          url = `${baseUrl}/image/upload${versionSegment}/f_auto,q_auto/${filePath}`;
+          if (isPDFFile) {
+            const pdfPublicID = public_id.endsWith(".pdf")
+              ? public_id
+              : `${public_id}.pdf`;
+            url = `${baseUrl}/image/upload${versionSegment}/${pdfPublicID}`;
+          } else {
+            url = `${baseUrl}/image/upload${versionSegment}/f_auto,q_auto/${public_id}`;
+          }
           break;
         case "raw":
           // For regular raw files
-          url = `${baseUrl}/raw/upload${versionSegment}/${filePath}`;
+          url = `${baseUrl}/raw/upload${versionSegment}/${public_id}${
+            public_id.endsWith(`.${format}`) ? "" : `.${format}`
+          }`;
           break;
         default:
-          url = `${baseUrl}/auto/upload${versionSegment}/${filePath}`;
+          url = `${baseUrl}/auto/upload${versionSegment}/${public_id}`;
       }
     }
 
