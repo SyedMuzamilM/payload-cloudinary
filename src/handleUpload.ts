@@ -81,80 +81,9 @@ const getUploadOptions = (
   }
 };
 
-/**
- * Sanitize a string to be used as part of a public ID
- * @param str String to sanitize
- * @returns Sanitized string
- */
-const sanitizeForPublicID = (str: string): string => {
-  return str
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "-") // Replace any character that's not a letter or number with a hyphen
-    .replace(/-+/g, "-") // Replace consecutive hyphens with a single hyphen
-    .replace(/^-|-$/g, ""); // Remove leading or trailing hyphens
-};
+import { sanitizeForPublicID, generatePublicID } from "./publicID";
 
-/**
- * Generate a public ID based on the publicID options
- * @param filename Original filename
- * @param folderPath Folder path
- * @param publicIDOptions Public ID options
- * @returns Generated public ID
- */
-const generatePublicID = (
-  filename: string,
-  folderPath: string,
-  publicIDOptions?: PublicIDOptions,
-): string => {
-  // If a custom generator function is provided, use it
-  if (publicIDOptions?.generatePublicID) {
-    return publicIDOptions.generatePublicID(
-      filename,
-      path.dirname(folderPath),
-      path.basename(folderPath),
-    );
-  }
 
-  // Get file extension and resource type
-  const ext = path.extname(filename).toLowerCase();
-  const resourceType = getResourceType(ext);
-  const isRawFile = resourceType === "raw";
-
-  // If publicID is disabled, just return the path with sanitization
-  if (publicIDOptions?.enabled === false) {
-    const filenameWithoutExt = path.basename(filename, path.extname(filename));
-    const sanitizedFilename = sanitizeForPublicID(filenameWithoutExt);
-    // For raw files, preserve the extension
-    const finalFilename = isRawFile
-      ? `${sanitizedFilename}${ext}`
-      : sanitizedFilename;
-    return path.posix.join(folderPath, finalFilename);
-  }
-
-  // Default behavior - use filename (if enabled) and make it unique (if enabled)
-  const useFilename = publicIDOptions?.useFilename !== false;
-  const uniqueFilename = publicIDOptions?.uniqueFilename !== false;
-
-  const timestamp = uniqueFilename ? `_${Date.now()}` : "";
-
-  if (useFilename) {
-    // Use the filename as part of the public ID (sanitized)
-    const filenameWithoutExt = path.basename(filename, path.extname(filename));
-    const sanitizedFilename = sanitizeForPublicID(filenameWithoutExt);
-    // For raw files, preserve the extension
-    const finalFilename = isRawFile
-      ? `${sanitizedFilename}${timestamp}${ext}`
-      : `${sanitizedFilename}${timestamp}`;
-    return path.posix.join(folderPath, finalFilename);
-  }
-
-  // Generate a timestamp-based ID if not using filename
-  // For raw files, we need to preserve the extension even with generated IDs
-  const finalFilename = isRawFile
-    ? `media${timestamp}${ext}`
-    : `media${timestamp}`;
-  return path.posix.join(folderPath, finalFilename);
-};
 
 /**
  * Check if a file is a PDF based on its file extension
@@ -198,7 +127,7 @@ export const getHandleUpload =
     versioning,
     publicID,
   }: Args): HandleUpload =>
-  async ({ data, file }) => {
+  async ({ data, file, clientUploadContext }) => {
     // Construct the folder path with proper handling of prefix
     const folderPath = data.prefix
       ? path.posix.join(folder, data.prefix)
@@ -211,11 +140,86 @@ export const getHandleUpload =
     const uploadOptions: UploadApiOptions = {
       ...getUploadOptions(file.filename, versioning),
       public_id: publicIdValue,
-      // folder: path.dirname(publicIdValue), // Extract folder from public_id
       use_filename: publicID?.useFilename !== false,
       unique_filename: publicID?.uniqueFilename !== false,
       asset_folder: folderPath,
     };
+
+    const processUploadResult = async (result: any) => {
+      const isPDFFile = isPDF(file.filename);
+      const baseMetadata = {
+        public_id: result.public_id,
+        resource_type: result.resource_type,
+        format: isPDFFile ? result.format || "pdf" : result.format,
+        secure_url: result.secure_url,
+        bytes: result.bytes,
+        created_at: result.created_at,
+        version: result.version ? String(result.version) : result.version,
+        version_id: result.version_id,
+      };
+
+      let typeSpecificMetadata = {};
+
+      if (result.resource_type === "video") {
+        typeSpecificMetadata = {
+          duration: result.duration,
+          width: result.width,
+          height: result.height,
+          eager: result.eager,
+        };
+      } else if (isPDFFile) {
+        let pageCount = 1;
+        if (result.pages) {
+          pageCount = result.pages;
+        } else {
+          pageCount = await getPDFPageCount(cloudinary, result.public_id);
+        }
+
+        const publicId = result.public_id.endsWith(".pdf")
+          ? result.public_id
+          : `${result.public_id}.pdf`;
+
+        typeSpecificMetadata = {
+          pages: pageCount,
+          selected_page: 1,
+          width: result.width,
+          height: result.height,
+          format: result.format || "pdf",
+          thumbnail_url: `https://res.cloudinary.com/${cloudinary.config().cloud_name}/image/upload/pg_1,f_jpg,q_auto/${publicId}`,
+        };
+      } else if (result.resource_type === "image") {
+        typeSpecificMetadata = {
+          width: result.width,
+          height: result.height,
+        };
+      }
+
+      const finalMetadata = {
+        ...baseMetadata,
+        ...typeSpecificMetadata,
+      };
+      if (isPDFFile) {
+        finalMetadata.format = "pdf";
+      }
+      data.cloudinary = finalMetadata;
+
+      if (versioning?.enabled && versioning?.storeHistory) {
+        data.versions = data.versions || [];
+        data.versions.push({
+          version: result.version ? String(result.version) : "",
+          version_id: result.version_id || "",
+          created_at: result.created_at || new Date().toISOString(),
+          secure_url: result.secure_url || "",
+        });
+      }
+      return data;
+    };
+
+    // If file was uploaded on the client, skip upload and process result
+    if (clientUploadContext && typeof clientUploadContext === 'object' && 'uploadResult' in clientUploadContext) {
+      const { uploadResult } = clientUploadContext as { uploadResult: any };
+      return await processUploadResult(uploadResult);
+    }
 
     return new Promise((resolve, reject) => {
       try {
@@ -229,93 +233,15 @@ export const getHandleUpload =
             }
 
             if (result) {
-              const isPDFFile = isPDF(file.filename);
-              const baseMetadata = {
-                public_id: result.public_id,
-                resource_type: result.resource_type,
-                // For PDFs, explicitly set format to "pdf" if not provided
-                format: isPDFFile ? result.format || "pdf" : result.format,
-                secure_url: result.secure_url,
-                bytes: result.bytes,
-                created_at: result.created_at,
-                // Ensure version is always stored as string to match field type
-                version: result.version
-                  ? String(result.version)
-                  : result.version,
-                version_id: result.version_id,
-              };
-
-              // Add metadata based on resource type
-              let typeSpecificMetadata = {};
-
-              if (result.resource_type === "video") {
-                typeSpecificMetadata = {
-                  duration: result.duration,
-                  width: result.width,
-                  height: result.height,
-                  eager: result.eager,
-                };
-              } else if (isPDFFile) {
-                // Handle PDF specific metadata
-                let pageCount = 1;
-
-                // Try to get page count from result, otherwise call the API
-                if (result.pages) {
-                  pageCount = result.pages;
-                } else {
-                  // Use the separate async function to get page count
-                  pageCount = await getPDFPageCount(
-                    cloudinary,
-                    result.public_id,
-                  );
-                }
-
-                // Ensure public_id has .pdf extension (but don't duplicate it)
-                const publicId = result.public_id.endsWith(".pdf")
-                  ? result.public_id
-                  : `${result.public_id}.pdf`;
-
-                typeSpecificMetadata = {
-                  pages: pageCount,
-                  selected_page: 1, // Default to first page for thumbnails
-                  width: result.width,
-                  height: result.height,
-                  format: result.format || "pdf", // Explicitly set format to pdf
-                  // Generate a thumbnail URL for the PDF using Cloudinary's PDF thumbnail feature
-                  thumbnail_url: `https://res.cloudinary.com/${cloudinary.config().cloud_name}/image/upload/pg_1,f_jpg,q_auto/${publicId}`,
-                };
-              } else if (result.resource_type === "image") {
-                typeSpecificMetadata = {
-                  width: result.width,
-                  height: result.height,
-                };
+              try {
+                const processedData = await processUploadResult(result);
+                resolve(processedData);
+              } catch (err) {
+                reject(err);
               }
-
-              // Combine base and type-specific metadata
-              // For PDFs, ensure format is explicitly set to "pdf"
-              const finalMetadata = {
-                ...baseMetadata,
-                ...typeSpecificMetadata,
-              };
-              if (isPDFFile) {
-                finalMetadata.format = "pdf";
-              }
-              data.cloudinary = finalMetadata;
-
-              // If versioning and history storage is enabled, store version info
-              if (versioning?.enabled && versioning?.storeHistory) {
-                data.versions = data.versions || [];
-                data.versions.push({
-                  // Store version as a string to match the field type expectation
-                  version: result.version ? String(result.version) : "",
-                  version_id: result.version_id || "",
-                  created_at: result.created_at || new Date().toISOString(),
-                  secure_url: result.secure_url || "",
-                });
-              }
+            } else {
+              resolve(data);
             }
-
-            resolve(data);
           },
         );
 

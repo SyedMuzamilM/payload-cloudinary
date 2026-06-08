@@ -177,6 +177,28 @@ cloudinaryStorage({
 })
 ```
 
+### Client-side Uploads
+
+Bypass server limits (like those on Vercel) by uploading files directly from the browser to Cloudinary.
+
+To enable client-side uploads, you must expose your Cloudinary API Key to the frontend using an environment variable named exactly `NEXT_PUBLIC_CLOUDINARY_API_KEY`.
+
+**Note:** Only the API Key is exposed to the frontend. Your Cloudinary API Secret remains safely on the server to generate signed upload credentials.
+
+```typescript
+// 1. In your .env file
+NEXT_PUBLIC_CLOUDINARY_API_KEY=your_api_key_here
+CLOUDINARY_API_SECRET=your_api_secret_here
+CLOUDINARY_CLOUD_NAME=your_cloud_name_here
+
+// 2. In your payload.config.ts
+cloudinaryStorage({
+  // ... other options
+  clientUploads: true, // Enable direct client-side uploads
+  useCompositePrefixes: true, // (Optional) Use composite prefixes (collection + document)
+})
+```
+
 ### PDF Support
 
 The plugin provides special handling for PDF files, including:
@@ -502,6 +524,8 @@ const CloudinaryImage = ({ media }) => {
 | `folder` | `string` | `'payload-media'` | Base folder path in Cloudinary |
 | `disableLocalStorage` | `boolean` | `true` | Whether to disable local storage |
 | `enabled` | `boolean` | `true` | Whether to enable the plugin |
+| `clientUploads` | `boolean` | `false` | Bypass server limits by uploading files directly from the browser |
+| `useCompositePrefixes` | `boolean` | `false` | Use composite prefixes (collection + document) for client uploads |
 | `customFields` | `Field[]` | `[]` | Custom fields to add to the media collection |
 | `supportDynamicFolderMode` | `boolean` | `true` | Whether to support Dynamic Folder Mode for newer Cloudinary accounts |
 | `publicID` | `Object` | (see below) | Public ID configuration options |

@@ -11,7 +11,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && bun build ./src/index.ts --outdir ./dist --target node",
+    "build": "tsc && bun build ./src/index.ts --outdir ./dist --target node --external '*'",
     "dev": "bun run src/index.ts",
     "test": "bun test",
     "prepublishOnly": "bun run build",
@@ -37,16 +37,18 @@
   "homepage": "https://github.com/syedmuzamilm/payload-cloudinary#readme",
   "devDependencies": {
     "@types/bun": "latest",
-    "typescript": "^5.0.0",
-    "bun-types": "latest"
+    "typescript": "^5.9.3",
+    "bun-types": "latest",
+    "payload": "^3.85.0",
+    "@payloadcms/plugin-cloud-storage": "^3.85.0"
   },
   "peerDependencies": {
     "typescript": "^5.0.0",
-    "payload": "^2.0.0"
+    "payload": "^3.85.0",
+    "@payloadcms/plugin-cloud-storage": "^3.85.0"
   },
   "dependencies": {
-    "@payloadcms/plugin-cloud-storage": "^3.25.0",
-    "cloudinary": "^2.5.1"
+    "cloudinary": "^2.10.0"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -55,6 +57,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/CloudinaryClientUploadHandler.d.ts",
+      "import": "./dist/client/CloudinaryClientUploadHandler.js"
     }
   }
 }

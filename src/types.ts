@@ -2,6 +2,7 @@ import type {
   Adapter,
   CollectionOptions,
   GenerateURL,
+  ClientUploadsConfig,
 } from "@payloadcms/plugin-cloud-storage/types";
 import type { Plugin, UploadCollectionSlug, Field } from "payload";
 
@@ -134,6 +135,16 @@ export type CloudinaryStorageOptions = {
    * @default true
    */
   enabled?: boolean;
+
+  /**
+   * Do uploads directly on the client, to bypass limits on Vercel.
+   */
+  clientUploads?: ClientUploadsConfig;
+
+  /**
+   * Use composite prefixes (collection + document)
+   */
+  useCompositePrefixes?: boolean;
 
   /**
    * Versioning configuration options
