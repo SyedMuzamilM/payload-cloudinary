@@ -181,23 +181,36 @@ cloudinaryStorage({
 
 Bypass server limits (like those on Vercel) by uploading files directly from the browser to Cloudinary.
 
-To enable client-side uploads, you must expose your Cloudinary API Key to the frontend using an environment variable named exactly `NEXT_PUBLIC_CLOUDINARY_API_KEY`.
-
-**Note:** Only the API Key is exposed to the frontend. Your Cloudinary API Secret remains safely on the server to generate signed upload credentials.
-
 ```typescript
-// 1. In your .env file
-NEXT_PUBLIC_CLOUDINARY_API_KEY=your_api_key_here
-CLOUDINARY_API_SECRET=your_api_secret_here
-CLOUDINARY_CLOUD_NAME=your_cloud_name_here
-
-// 2. In your payload.config.ts
+// In your payload.config.ts
 cloudinaryStorage({
-  // ... other options
+  config: {
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  },
+  collections: {
+    media: true,
+  },
   clientUploads: true, // Enable direct client-side uploads
   useCompositePrefixes: true, // (Optional) Use composite prefixes (collection + document)
 })
 ```
+
+> **Note:** No additional environment variables are needed on the frontend. The plugin automatically passes the API key from the server to the client via a secure signature endpoint. Your API Secret is never exposed to the browser.
+
+#### How It Works
+
+1. When a user uploads a file in the admin panel, the browser requests a **signed upload credential** from your server (`/api/cloudinary-client-upload-route`).
+2. The server generates a `public_id`, signs all upload parameters with your API Secret, and returns the signature + params.
+3. The browser uploads the file **directly to Cloudinary** using the signed params — the file never passes through your server.
+4. After the upload, an `afterChange` hook on the server persists all Cloudinary metadata (public_id, secure_url, dimensions, etc.) to the document.
+
+This approach ensures:
+- No server bandwidth or memory usage for file uploads
+- No request size limits (Vercel's 4.5MB limit is bypassed)
+- Full Cloudinary metadata (including PDF pages, video duration, etc.) is still saved
+- `publicID` and `folder` configuration is respected identically to server-side uploads
 
 ### PDF Support
 

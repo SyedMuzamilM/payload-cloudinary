@@ -7,6 +7,7 @@ import type { CloudinaryVersioningOptions, PublicIDOptions } from "./types";
 import path from "path";
 import stream from "stream";
 import { getResourceType } from "./utils";
+import { sanitizeForPublicID, generatePublicID } from "./publicID";
 
 interface Args {
   cloudinary: typeof cloudinaryType;
@@ -80,9 +81,6 @@ const getUploadOptions = (
       return baseOptions;
   }
 };
-
-import { sanitizeForPublicID, generatePublicID } from "./publicID";
-
 
 
 /**
