@@ -8,10 +8,10 @@ import type { Config } from "payload";
 
 import { v2 as cloudinary } from "cloudinary";
 import { cloudStoragePlugin } from "@payloadcms/plugin-cloud-storage";
-import { initClientUploads } from '@payloadcms/plugin-cloud-storage/utilities';
 
 import type { CloudinaryClientUploadHandlerExtra } from './client/CloudinaryClientUploadHandler';
 import { getClientUploadRoute } from './getClientUploadRoute';
+import { initClientUploads } from './initClientUploads';
 
 import path from "path";
 
@@ -58,14 +58,49 @@ const defaultPDFThumbnailGenerator = (
 export const cloudinaryStorage: CloudinaryStoragePlugin =
   (cloudinaryOptions: CloudinaryStorageOptions) =>
   (incomingConfig: Config): Config => {
-    if (cloudinaryOptions.enabled === false) {
+    const isPluginDisabled = cloudinaryOptions.enabled === false;
+
+    // Ensure collections is always an object (defensive handling)
+    const pluginCollections = cloudinaryOptions.collections || {};
+
+    // Always register client-upload providers/import-map entries (even when
+    // disabled) so admin import maps stay consistent across environments.
+    // Mutate incomingConfig BEFORE spreading it into `config` below.
+    if (Object.keys(pluginCollections).length > 0) {
+      initClientUploads<
+        CloudinaryClientUploadHandlerExtra,
+        CloudinaryStorageOptions["collections"][string]
+      >({
+        clientHandler:
+          "payload-cloudinary/client#CloudinaryClientUploadHandler",
+        collections: pluginCollections,
+        config: incomingConfig,
+        enabled: !isPluginDisabled && Boolean(cloudinaryOptions.clientUploads),
+        extraClientHandlerProps: () => ({
+          useCompositePrefixes: !!cloudinaryOptions.useCompositePrefixes,
+        }),
+        serverHandler: getClientUploadRoute({
+          access:
+            typeof cloudinaryOptions.clientUploads === "object"
+              ? cloudinaryOptions.clientUploads.access
+              : undefined,
+          apiKey: cloudinaryOptions.config.api_key,
+          apiSecret: cloudinaryOptions.config.api_secret,
+          cloudName: cloudinaryOptions.config.cloud_name,
+          collections: pluginCollections,
+          folder: cloudinaryOptions.folder || "payload-media",
+          publicID: cloudinaryOptions.publicID,
+          versioning: cloudinaryOptions.versioning,
+        }),
+        serverHandlerPath: "/cloudinary-client-upload-route",
+      });
+    }
+
+    if (isPluginDisabled) {
       return incomingConfig;
     }
 
     const adapter = cloudinaryStorageInternal(cloudinaryOptions);
-
-    // Ensure collections is always an object (defensive handling)
-    const pluginCollections = cloudinaryOptions.collections || {};
 
     // Add adapter to each collection option object
     const collectionsWithAdapter: CloudStoragePluginOptions["collections"] =
@@ -80,7 +115,8 @@ export const cloudinaryStorage: CloudinaryStoragePlugin =
         {} as Record<string, CollectionOptions>,
       );
 
-    // Create a new config with our modifications
+    // Create a new config with our modifications (after initClientUploads so
+    // endpoints/admin providers added above are included via shallow spread).
     const config = {
       ...incomingConfig,
       collections: (incomingConfig.collections || []).map((collection) => {
@@ -180,7 +216,7 @@ export const cloudinaryStorage: CloudinaryStoragePlugin =
             ...modifiedCollection.hooks,
             afterChange: [
               ...existingAfterChange,
-              async ({ doc, req, operation }) => {
+              async ({ doc, req }) => {
                 // Skip if this is an internal update to prevent infinite loop
                 if (req.context?.skipCloudinaryClientUpload) {
                   return doc;
@@ -272,38 +308,14 @@ export const cloudinaryStorage: CloudinaryStoragePlugin =
       }),
     };
 
-    // Initialize client uploads only if explicitly enabled and collections are configured
-    if (cloudinaryOptions.clientUploads && Object.keys(pluginCollections).length > 0) {
-      initClientUploads<
-        CloudinaryClientUploadHandlerExtra,
-        CloudinaryStorageOptions["collections"][string]
-      >({
-        clientHandler:
-          "payload-cloudinary/client#CloudinaryClientUploadHandler",
-        collections: pluginCollections,
-        config: incomingConfig,
-        enabled: Boolean(cloudinaryOptions.clientUploads),
-        extraClientHandlerProps: () => ({
-          useCompositePrefixes: !!cloudinaryOptions.useCompositePrefixes,
-        }),
-        serverHandler: getClientUploadRoute({
-          apiKey: cloudinaryOptions.config.api_key,
-          apiSecret: cloudinaryOptions.config.api_secret,
-          cloudName: cloudinaryOptions.config.cloud_name,
-          folder: cloudinaryOptions.folder || 'payload-media',
-          publicID: cloudinaryOptions.publicID,
-          versioning: cloudinaryOptions.versioning,
-        }),
-        serverHandlerPath: "/cloudinary-client-upload-route",
-      });
-    }
-
     return cloudStoragePlugin({
       collections: collectionsWithAdapter,
+      useCompositePrefixes: cloudinaryOptions.useCompositePrefixes,
     })(config);
   };
 
 function cloudinaryStorageInternal({
+  clientUploads,
   config,
   folder = "payload-media",
   versioning = {
@@ -323,6 +335,7 @@ function cloudinaryStorageInternal({
 
     return {
       name: "cloudinary",
+      clientUploads,
       generateURL: getGenerateURL({ config, folder, versioning }),
       handleDelete: getHandleDelete({ cloudinary, folder }),
       handleUpload: getHandleUpload({

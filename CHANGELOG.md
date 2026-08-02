@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0-beta.2] - 2026-08-02
+
+### Fixed
+- **Client uploads compile error**: Stopped importing `initClientUploads` from `@payloadcms/plugin-cloud-storage/utilities`, which is missing in some installed package versions and caused Next.js/Webpack `Attempted import error` failures.
+- Vendored `initClientUploads` locally so client-upload endpoint + admin provider registration always works.
+- Pass `clientUploads` on the GeneratedAdapter (required for plugin-cloud-storage to skip server `handleUpload` for client-uploaded files).
+- Call `initClientUploads` on `incomingConfig` *before* spreading into the returned config, so endpoints/providers are not dropped.
+- Add authenticated access checks + collection validation on the signature route (matches official Payload storage adapters).
+
 ## [2.4.0-beta.1] - 2025-06-09
 
 ### Added

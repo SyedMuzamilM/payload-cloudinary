@@ -1,6 +1,8 @@
 import { v2 as cloudinary } from 'cloudinary'
+import { APIError, Forbidden } from 'payload'
 import type { PayloadRequest } from 'payload'
-import type { PublicIDOptions, CloudinaryVersioningOptions } from './types'
+import type { ClientUploadsAccess } from '@payloadcms/plugin-cloud-storage/types'
+import type { PublicIDOptions, CloudinaryVersioningOptions, CloudinaryStorageOptions } from './types'
 import path from 'path'
 import { getResourceType } from './utils'
 import { generatePublicID } from './publicID'
@@ -10,11 +12,17 @@ export interface GetClientUploadRouteOptions {
   apiKey: string
   apiSecret: string
   folder: string
+  collections: CloudinaryStorageOptions['collections']
+  access?: ClientUploadsAccess
   publicID?: PublicIDOptions
   versioning?: CloudinaryVersioningOptions
 }
 
+const defaultAccess: ClientUploadsAccess = ({ req }) => Boolean(req.user)
+
 export const getClientUploadRoute = (options: GetClientUploadRouteOptions) => {
+  const access = options.access ?? defaultAccess
+
   return async (req: PayloadRequest) => {
     // Reconfigure cloudinary here to ensure it uses the correct config for this plugin instance
     cloudinary.config({
@@ -23,8 +31,28 @@ export const getClientUploadRoute = (options: GetClientUploadRouteOptions) => {
       api_secret: options.apiSecret,
     })
 
-    const body = (typeof req.json === 'function' ? await req.json() : req.body) as Record<string, any>
-    const { collectionSlug, docPrefix, filename, filesize, mimeType } = body || {}
+    if (typeof req.json !== 'function') {
+      throw new APIError('Content-Type expected to be application/json', 400)
+    }
+
+    const body = (await req.json()) as Record<string, any>
+    const { collectionSlug, docPrefix, filename } = body || {}
+
+    if (!collectionSlug || !filename) {
+      throw new APIError('collectionSlug and filename are required', 400)
+    }
+
+    const collectionConfig = options.collections[collectionSlug as keyof typeof options.collections]
+    if (!collectionConfig) {
+      throw new APIError(
+        `Collection ${collectionSlug} was not found in Cloudinary storage options`,
+        400,
+      )
+    }
+
+    if (!(await access({ collectionSlug, req }))) {
+      throw new Forbidden()
+    }
 
     try {
       const timestamp = Math.floor(Date.now() / 1000)
@@ -59,7 +87,7 @@ export const getClientUploadRoute = (options: GetClientUploadRouteOptions) => {
 
       const signature = cloudinary.utils.api_sign_request(
         paramsToSign,
-        options.apiSecret
+        options.apiSecret,
       )
 
       // Build the correct upload URL with the specific resource type
@@ -77,10 +105,13 @@ export const getClientUploadRoute = (options: GetClientUploadRouteOptions) => {
         uploadParams: paramsToSign,
       })
     } catch (error) {
-      return Response.json(
-        { errors: [{ message: 'Failed to generate upload signature' }] },
-        { status: 400 }
-      )
+      if (error instanceof APIError || error instanceof Forbidden) {
+        throw error
+      }
+
+      req.payload.logger.error({ err: error }, 'Failed to generate Cloudinary upload signature')
+
+      throw new APIError('Failed to generate upload signature', 400)
     }
   }
 }
