@@ -2,10 +2,10 @@ import { v2 as cloudinary } from 'cloudinary'
 import { APIError, Forbidden } from 'payload'
 import type { PayloadRequest } from 'payload'
 import type { ClientUploadsAccess } from '@payloadcms/plugin-cloud-storage/types'
-import type { PublicIDOptions, CloudinaryVersioningOptions, CloudinaryStorageOptions } from './types'
+import type { PublicIDOptions, CloudinaryVersioningOptions, CloudinaryStorageOptions } from './types.js'
 import path from 'path'
-import { getResourceType } from './utils'
-import { generatePublicID } from './publicID'
+import { getResourceType } from './utils.js'
+import { generatePublicID } from './publicID.js'
 
 export interface GetClientUploadRouteOptions {
   cloudName: string

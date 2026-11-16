@@ -2,12 +2,12 @@ import type { HandleUpload } from "@payloadcms/plugin-cloud-storage/types";
 import type { CollectionConfig } from "payload";
 import type { v2 as cloudinaryType } from "cloudinary";
 import type { UploadApiOptions } from "cloudinary";
-import type { CloudinaryVersioningOptions, PublicIDOptions } from "./types";
+import type { CloudinaryVersioningOptions, PublicIDOptions } from "./types.js";
 
 import path from "path";
 import stream from "stream";
-import { getResourceType } from "./utils";
-import { sanitizeForPublicID, generatePublicID } from "./publicID";
+import { getResourceType } from "./utils.js";
+import { sanitizeForPublicID, generatePublicID } from "./publicID.js";
 
 interface Args {
   cloudinary: typeof cloudinaryType;

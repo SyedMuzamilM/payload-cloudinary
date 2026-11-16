@@ -13,7 +13,7 @@
   "scripts": {
     "build": "tsc && bun build ./src/index.ts --outdir ./dist --target node --external '*'",
     "dev": "bun run src/index.ts",
-    "test": "bun test",
+    "test": "bun run build && bun test",
     "prepublishOnly": "bun run build",
     "release": "chmod +x ./scripts/publish.sh && ./scripts/publish.sh"
   },
