@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-11-16
+
+### Added
+- Stable support for direct browser uploads to Cloudinary with `clientUploads: true`, including composite prefixes.
+- Cloudinary metadata persistence after client uploads and shared public-ID generation for client and server uploads.
+
+### Fixed
+- Preserve exported TypeScript types and callback inference under `node16` and `nodenext` module resolution by emitting explicit ESM import paths. Fixes [#31](https://github.com/SyedMuzamilM/payload-cloudinary/issues/31).
+- Register client-upload routes and admin providers before copying the Payload configuration, with authenticated access checks and collection validation.
+- Sign all client-upload parameters and pass the API key from the server, without requiring frontend environment variables or exposing the API secret.
+
+### Changed
+- Require Payload CMS and `@payloadcms/plugin-cloud-storage` version `^3.85.0`.
+
 ## [2.4.0-beta.2] - 2026-08-02
 
 ### Fixed
