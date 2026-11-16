@@ -18,12 +18,23 @@ publish_version() {
 
     print_message "📦 Publishing version ${version} with tag: ${tag}..." "$YELLOW"
 
-    # Update version in package.json
-    npm version $version --no-git-tag-version
+    # Update version in package.json (skip if already at the target version)
+    local current=$(node -p "require('./package.json').version")
+    if [ "$current" != "$version" ]; then
+        npm version $version --no-git-tag-version
+    else
+        print_message "Version already set to ${version}, skipping version bump" "$YELLOW"
+    fi
 
     # Build the project
     print_message "🏗️ Building project..." "$YELLOW"
     bun run build || exit 1
+
+    # Configure npm auth if NPM_TOKEN is set
+    if [ -n "$NPM_TOKEN" ]; then
+        print_message "🔑 Configuring npm authentication..." "$YELLOW"
+        npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
+    fi
 
     # Publish with tag
     if npm publish --tag $tag; then
@@ -33,6 +44,31 @@ publish_version() {
         exit 1
     fi
 }
+
+# ─── Non-interactive mode ───────────────────────────────────────────────
+# Usage: ./scripts/publish.sh <version> <tag>
+# Example: ./scripts/publish.sh 2.4.0-beta.1 beta
+# Example: NPM_TOKEN=npm_xxx ./scripts/publish.sh 2.4.0 latest
+if [ -n "$1" ] && [ -n "$2" ]; then
+    version=$1
+    tag=$2
+    print_message "📋 Non-interactive mode: version=${version}, tag=${tag}" "$YELLOW"
+
+    # Publish
+    publish_version $version $tag
+
+    # Git operations
+    git add package.json
+    git commit -m "chore(release): v${version}" --allow-empty
+    git tag -a "v$version" -m "Release v$version"
+
+    print_message "🚀 Pushing to repository..." "$YELLOW"
+    git push && git push --tags
+
+    exit 0
+fi
+
+# ─── Interactive mode ───────────────────────────────────────────────────
 
 # Check if the working directory is clean
 if [ -n "$(git status --porcelain)" ]; then
