@@ -3,7 +3,7 @@ import type { CollectionConfig, PayloadRequest } from "payload";
 import type { v2 as cloudinaryType } from "cloudinary";
 
 import path from "path";
-import { getResourceType } from "./utils";
+import { getResourceType } from "./utils.js";
 
 type CloudinaryMetadata = {
   format?: string;

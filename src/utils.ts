@@ -2,7 +2,7 @@ import {
   IMAGE_EXTENSIONS,
   RAW_EXTENSIONS,
   VIDEO_EXTENSIONS,
-} from "./constants";
+} from "./constants.js";
 
 export const getResourceType = (ext: string) => {
   // PDFs should be treated as images, not raw files

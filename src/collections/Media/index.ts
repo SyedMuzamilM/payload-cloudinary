@@ -1,11 +1,11 @@
 import type { CollectionConfig, Field } from "payload";
-import { cloudinaryFields } from "./fields/cloudinary";
-import { versionFields } from "./fields/versions";
+import { cloudinaryFields } from "./fields/cloudinary.js";
+import { versionFields } from "./fields/versions.js";
 import {
   generateCustomFields,
   defaultMediaCustomFields,
-} from "./fields/customFields";
-import type { CloudinaryStorageOptions } from "../../types";
+} from "./fields/customFields.js";
+import type { CloudinaryStorageOptions } from "../../types.js";
 
 export const generateMediaCollection = (
   cloudinaryOptions: CloudinaryStorageOptions,

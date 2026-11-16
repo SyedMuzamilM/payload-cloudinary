@@ -1,7 +1,7 @@
 import type { HandleDelete } from "@payloadcms/plugin-cloud-storage/types";
 import type { v2 as cloudinaryType } from "cloudinary";
 
-import type { CloudinaryMetadata } from "./types";
+import type { CloudinaryMetadata } from "./types.js";
 
 import path from "path";
 

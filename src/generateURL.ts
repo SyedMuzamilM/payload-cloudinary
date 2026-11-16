@@ -1,13 +1,13 @@
 import type { GenerateURL } from "@payloadcms/plugin-cloud-storage/types";
-import type { CloudinaryStorageOptions } from "./index";
-import type { GenerateURLParams, CloudinaryGenerateURL } from "./types";
+import type { CloudinaryStorageOptions } from "./index.js";
+import type { GenerateURLParams, CloudinaryGenerateURL } from "./types.js";
 
 import path from "path";
 import {
   IMAGE_EXTENSIONS,
   RAW_EXTENSIONS,
   VIDEO_EXTENSIONS,
-} from "./constants";
+} from "./constants.js";
 
 interface Args {
   config: CloudinaryStorageOptions["config"];

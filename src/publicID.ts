@@ -1,6 +1,6 @@
 import path from "path";
-import { getResourceType } from "./utils";
-import type { PublicIDOptions } from "./types";
+import { getResourceType } from "./utils.js";
+import type { PublicIDOptions } from "./types.js";
 
 /**
  * Sanitize a string to be used as part of a public ID

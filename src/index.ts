@@ -9,27 +9,27 @@ import type { Config } from "payload";
 import { v2 as cloudinary } from "cloudinary";
 import { cloudStoragePlugin } from "@payloadcms/plugin-cloud-storage";
 
-import type { CloudinaryClientUploadHandlerExtra } from './client/CloudinaryClientUploadHandler';
-import { getClientUploadRoute } from './getClientUploadRoute';
-import { initClientUploads } from './initClientUploads';
+import type { CloudinaryClientUploadHandlerExtra } from './client/CloudinaryClientUploadHandler.js';
+import { getClientUploadRoute } from './getClientUploadRoute.js';
+import { initClientUploads } from './initClientUploads.js';
 
 import path from "path";
 
-import { getGenerateURL } from "./generateURL";
-import { getHandleDelete } from "./handleDelete";
-import { getHandleUpload } from "./handleUpload";
-import { getHandler } from "./staticHandler";
-import { generateMediaCollection } from "./collections/Media";
-import { generateCustomFields } from "./collections/Media/fields/customFields";
-import { cloudinaryFields } from "./collections/Media/fields/cloudinary";
-import { versionFields } from "./collections/Media/fields/versions";
+import { getGenerateURL } from "./generateURL.js";
+import { getHandleDelete } from "./handleDelete.js";
+import { getHandleUpload } from "./handleUpload.js";
+import { getHandler } from "./staticHandler.js";
+import { generateMediaCollection } from "./collections/Media/index.js";
+import { generateCustomFields } from "./collections/Media/fields/customFields.js";
+import { cloudinaryFields } from "./collections/Media/fields/cloudinary.js";
+import { versionFields } from "./collections/Media/fields/versions.js";
 import type {
   CloudinaryStorageOptions,
   CloudinaryStoragePlugin,
   CloudinaryMetadata,
   CloudinaryAdapter,
   PayloadDocument,
-} from "./types";
+} from "./types.js";
 
 export type {
   CloudinaryStorageOptions,
